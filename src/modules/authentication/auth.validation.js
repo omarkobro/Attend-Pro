@@ -96,7 +96,7 @@ export const staffSignUpValidation = {
 
 
 export const verifyEmailValidation = {
-  body: Joi.object({
+  query: Joi.object({
     token: Joi.string().required().messages({
       "string.empty": "Verification token is required.",
     }),
