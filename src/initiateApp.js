@@ -30,7 +30,12 @@ export let initiateApp = (app ,express)=>{
     // CORS configuration
     app.use(cors());
     app.use(cookieParser());
-    
+
+      // Ping route to confirm the server is running
+      app.get("/ping", (req, res) => {
+      res.send("Server is alive!");
+      });
+      
     app.use("/auth", routers.authRouter)
     app.use("/allowedStaff", routers.allowedStaffRouter)
     app.use("/subjects", routers.subjectRouter)
@@ -47,16 +52,16 @@ export let initiateApp = (app ,express)=>{
     db_connection()
     initializeSocket(app);  
 
-//     // Schedule a ping request to prevent sleep mode
-// cron.schedule("*/10 * * * *", async () => {
-//   try {
-//     const serverUrl = "https://apexracingteam-eg.onrender.com/ping";
-//     const response = await axios.get(serverUrl);
-//     console.log(`Pinged server: ${response.statusText}`);
-//   } catch (error) {
-//     console.error("Error pinging server:", error.message);
-//   }
-// });
+    // Schedule a ping request to prevent sleep mode
+cron.schedule("*/10 * * * *", async () => {
+  try {
+    const serverUrl = "https://attend-pro.onrender.com/ping";
+    const response = await axios.get(serverUrl);
+    console.log(`Pinged server: ${response.statusText}`);
+  } catch (error) {
+    console.error("Error pinging server:", error.message);
+  }
+});
 
     server.listen(port, ()=>{console.log("app is running successfully on port 3000");})
 }

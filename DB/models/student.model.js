@@ -29,11 +29,9 @@ const studentSchema = new Schema({
     department: {
         type: Schema.Types.ObjectId,
         ref: "Department",
-        required: true
     },
     year : {
         type : Number ,
-        required : true 
     },
     // subjects: [{ type: Schema.Types.ObjectId, ref: 'Subject' }],
     groups: [{ type: Schema.Types.ObjectId, ref: 'Group' }]
