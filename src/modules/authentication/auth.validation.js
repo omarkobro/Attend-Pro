@@ -41,7 +41,7 @@ export const studentSignUpValidation = {
       department : Joi.custom(objectIdValidation).messages({
         "any.required": "Department is required",
     }),
-      year: Joi.number().integer().min(1).max(10).required().messages({
+      year: Joi.number().integer().min(1).max(10).optional().messages({
           "number.base": "Year must be a valid number.",
           "number.min": "Year must be at least 1.",
           "number.max": "Year cannot exceed 10.",
