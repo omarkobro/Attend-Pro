@@ -122,7 +122,50 @@ export const signUpStudent = async (req, res, next) => {
     expiresIn: "1d",
   });
   const verificationUrl = `${req.protocol}://${req.headers.host}/auth/verify-account?token=${token}`;
-  const emailMessage = `<p>Click here to verify your account: <a href="${verificationUrl}">Verify Account</a></p>`;
+  const emailMessage = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Verify Your Account</title>
+</head>
+<body style="font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0;">
+  <table align="center" cellpadding="0" cellspacing="0" width="600" style="border-collapse: collapse; background-color: #ffffff; margin-top: 30px;">
+    <tr>
+      <td style="background-color: #2b7cff; padding: 20px 30px; color: white; text-align: center;">
+        <h1 style="margin: 0;">Attend Pro</h1>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 30px;">
+        <h2>Welcome, ${firstName}!</h2>
+        <p style="font-size: 16px; color: #333;">
+          Thank you for registering. Please confirm your university email by clicking the button below.
+        </p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${verificationUrl}" style="background-color: #2b7cff; color: #fff; padding: 12px 25px; text-decoration: none; border-radius: 5px; display: inline-block;">
+            Verify Account
+          </a>
+        </div>
+        <p style="font-size: 14px; color: #777;">
+          Or copy and paste this link into your browser:<br />
+          <a href="${verificationUrl}" style="color: #2b7cff;">${verificationUrl}</a>
+        </p>
+        <p style="font-size: 12px; color: #999; margin-top: 40px;">
+          If you did not sign up for Attend Pro, you can safely ignore this email.
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td style="background-color: #f4f4f4; text-align: center; padding: 20px; font-size: 12px; color: #999;">
+        &copy; ${new Date().getFullYear()} Attend Pro. All rights reserved.
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`;
 
   const emailSent = await sendEmail({
     to: university_email,
@@ -215,7 +258,50 @@ export const signUpStaff = async (req, res, next) => {
     // 7. Send Email Verification
     const token = jwt.sign({ university_email }, process.env.JWT_SECRET, { expiresIn: "1d" });
     const verificationUrl = `${req.protocol}://${req.headers.host}/auth/verify-account?token=${token}`;
-    const emailMessage = `<p>Click here to verify your account: <a href="${verificationUrl}">Verify Account</a></p>`;
+    const emailMessage = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Verify Your Account</title>
+</head>
+<body style="font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0;">
+  <table align="center" cellpadding="0" cellspacing="0" width="600" style="border-collapse: collapse; background-color: #ffffff; margin-top: 30px;">
+    <tr>
+      <td style="background-color: #2b7cff; padding: 20px 30px; color: white; text-align: center;">
+        <h1 style="margin: 0;">Attend Pro</h1>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 30px;">
+        <h2>Welcome, ${firstName}!</h2>
+        <p style="font-size: 16px; color: #333;">
+          Thank you for registering. Please confirm your university email by clicking the button below.
+        </p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${verificationUrl}" style="background-color: #2b7cff; color: #fff; padding: 12px 25px; text-decoration: none; border-radius: 5px; display: inline-block;">
+            Verify Account
+          </a>
+        </div>
+        <p style="font-size: 14px; color: #777;">
+          Or copy and paste this link into your browser:<br />
+          <a href="${verificationUrl}" style="color: #2b7cff;">${verificationUrl}</a>
+        </p>
+        <p style="font-size: 12px; color: #999; margin-top: 40px;">
+          If you did not sign up for Attend Pro, you can safely ignore this email.
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td style="background-color: #f4f4f4; text-align: center; padding: 20px; font-size: 12px; color: #999;">
+        &copy; ${new Date().getFullYear()} Attend Pro. All rights reserved.
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`;
 
     const emailSent = await sendEmail({
       to: university_email,

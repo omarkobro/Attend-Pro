@@ -3,11 +3,20 @@ import { authorizeRole } from "../../middlewares/authorization.middleware.js";
 import { validationMiddleware } from "../../middlewares/validation.middleware.js";
 import { auth } from "../../middlewares/auth.middleware.js";
 import { systemRoles } from "../../utils/systemRoles.js";
+import { getGroupWeeklyAttendance } from "./attendance.controller.js";
+import { getGroupWeeklyAttendanceSchema } from "./attendnace.validation.js";
 import expressAsyncHandler from "express-async-handler";
-import { checkInValidation, checkOutValidation } from './attendnace.validation.js';
-// import { checkIn, checkOut } from './attendance.controller.js';
 
 const router = Router();
+
+router.get(
+    "/group/weekly/:groupId",
+    auth,
+    authorizeRole([systemRoles.ADMIN,systemRoles.STAFF]),
+    validationMiddleware(getGroupWeeklyAttendanceSchema),
+    expressAsyncHandler(getGroupWeeklyAttendance)
+  );
+
 
 // router.patch(
 //   "/check-in",

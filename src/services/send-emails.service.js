@@ -3,30 +3,28 @@
  * 1 setup nodemailer configuration
  */
 
-import nodemailer from "nodemailer";
+import SibApiV3Sdk from 'sib-api-v3-sdk';
 
-
-export let sendEmail = async ({to = "", subject = "no reply", message = "<h1>no reply</h1>",attachments })=>{
-    // Here we are setting up the configuration
-    const transporter = nodemailer.createTransport({
-        host: "lsmtp.forwardemail.net", // we can rplace with "smtp.forwardemail.net" in case of faliure of the local host >> simple mail transfer protocol
-        service:'gmail',
-        port: 465, 
-        secure: true,
-        auth: {
-        user: process.env.EMAIL,
-        pass: process.env.EMAIL_PASSWORD,
-    },
-    });
-
-    const info = await transporter.sendMail({
-        from: `"no-reply" <${process.env.EMAIL}>`,
-        to,
-        subject,
-        html:message,
-        attachments
-    })
-    return info.accepted.length > 0 
-}
-
-
+export const sendEmail = async ({ to, subject, message }) => {
+    const client = SibApiV3Sdk.ApiClient.instance;
+    const apiKey = client.authentications['api-key'];
+    apiKey.apiKey = process.env.BREVO_API_KEY;
+  
+    const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
+  
+    const emailData = {
+      sender: { email: process.env.EMAIL, name: 'Attend Pro' },
+      to: [{ email: to }],
+      subject,
+      htmlContent: message,
+    };
+  
+    try {
+      const response = await apiInstance.sendTransacEmail(emailData);
+      console.log('Email sent:', response.messageId || response);
+      return true;
+    } catch (error) {
+      console.error('Email send error:', error.response?.body || error.message);
+      return false;
+    }
+  };
