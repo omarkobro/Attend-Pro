@@ -10,11 +10,13 @@ import mqttClient from "../../utils/mqtt.connection.js";
 
 //================== Check-In Handler Functions =======================
 export const handleCheckInRequest = async (payload) => {
+  console.log("test 7mody");
+  
   const { student_id, rfid_tag, device_id, marked_by } = payload;
 
   const responseTopic = `attendance/check-in/response/${device_id}`;
   const now = new Date();
-  
+
   // Fetch and validate device
   const device = await Device.findOne({ device_id }).lean();
   if (!device || device.status !== "reserved" || device.sessionMode !== "check-in") {
@@ -24,12 +26,24 @@ export const handleCheckInRequest = async (payload) => {
     }));
   }
 
-  // Fetch student
+  // Fetch student with groups populated with subject_id
   let student = null;
   if (student_id) {
-    student = await Student.findOne({ student_id }).populate("user_id", "firstName lastName email").lean();
+    student = await Student.findOne({ student_id })
+      .populate("user_id", "firstName lastName email")
+      .populate({
+        path: "groups",
+        select: "_id subject_id"
+      })
+      .lean();
   } else if (rfid_tag) {
-    student = await Student.findOne({ rfid_tag }).populate("user_id", "firstName lastName email").lean();
+    student = await Student.findOne({ rfid_tag })
+      .populate("user_id", "firstName lastName email")
+      .populate({
+        path: "groups",
+        select: "_id subject_id"
+      })
+      .lean();
   }
 
   if (!student) {
@@ -57,7 +71,7 @@ export const handleCheckInRequest = async (payload) => {
     }));
   }
 
-  // Is student in group?
+  // Is student in the current group?
   const isInGroup = group.students.some(id => id.toString() === student._id.toString());
 
   // ⏱️ Fast Response to PI
@@ -77,10 +91,24 @@ const queueBackgroundCheckIn = async (student, device, isInGroup, marked_by, now
   const sessionStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const sessionEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
+  // ✅ Determine the correct group to assign the attendance to
+  let groupIdToUse = device.currentGroupId;
+
+  if (!isInGroup) {
+    const correctGroup = student.groups.find(g =>
+      g.subject_id?.toString() === device.currentSubjectId.toString()
+    );
+
+    if (correctGroup) {
+      groupIdToUse = correctGroup._id;
+    }
+  }
+
+  // Find existing attendance if any
   const existingAttendance = await Attendance.findOne({
     student: student._id,
     subject: device.currentSubjectId,
-    group: device.currentGroupId,
+    group: groupIdToUse,
     sessionDate: { $gte: sessionStart, $lt: sessionEnd },
     weekNumber: device.weekNumber,
     sessionType: device.sessionType,
@@ -101,7 +129,7 @@ const queueBackgroundCheckIn = async (student, device, isInGroup, marked_by, now
     updatedAttendance = await Attendance.create({
       student: student._id,
       subject: device.currentSubjectId,
-      group: device.currentGroupId,
+      group: groupIdToUse,
       sessionDate: sessionStart,
       weekNumber: device.weekNumber,
       sessionType: device.sessionType,
@@ -112,7 +140,7 @@ const queueBackgroundCheckIn = async (student, device, isInGroup, marked_by, now
     });
   }
 
-  // Send real-time update to UI
+  // Emit socket update
   const checkInInfo = {
     _id: updatedAttendance._id,
     student: {
@@ -123,6 +151,7 @@ const queueBackgroundCheckIn = async (student, device, isInGroup, marked_by, now
     status: updatedAttendance.status,
     checkInTime: updatedAttendance.checkInTime,
   };
+
   io.to(`session-${device.currentGroupId}`).emit("student-check-in", checkInInfo);
 
   // Save notification
@@ -230,15 +259,23 @@ const handleCheckOutInBackground = async (payload) => {
     const sessionStart = new Date(now.setHours(0, 0, 0, 0));
     const sessionEnd = new Date(now.setHours(23, 59, 59, 999));
 
+    console.log(student._id);
+    console.log(currentSubjectId);
+    console.log(currentGroupId);
+    console.log(weekNumber);
+    console.log(sessionType);
+    
     const attendance = await Attendance.findOne({
       student: student._id,
       subject: currentSubjectId,
-      group: currentGroupId,
+      // group: currentGroupId,
       sessionDate: { $gte: sessionStart, $lte: sessionEnd },
       weekNumber,
       sessionType,
     });
 
+    console.log(attendance);
+    
     if (!attendance) {
       console.log("❌ No attendance record found for this student today");
       return;

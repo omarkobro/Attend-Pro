@@ -173,3 +173,29 @@ export const removeGroupFromSubjectValidation = {
           }),
   }),
 };
+
+export const getSubjectsForStaffSchema = {
+  params: Joi.object({
+    staff_id: Joi.string().custom(objectIdValidation).required().messages({
+      "string.base": "Staff ID must be a string.",
+      "any.required": "Staff ID is required.",
+    }),
+  }),
+};
+
+
+
+export const getAssignedGroupsForStaffSchema = {
+  params: Joi.object({
+    staffId: Joi.string().custom(objectIdValidation).required().messages({
+      "any.required": "Staff ID is required",
+      "string.base": "Staff ID must be a string",
+      "string.empty": "Staff ID cannot be empty",
+    }),
+    subjectId: Joi.string().custom(objectIdValidation).required().messages({
+      "any.required": "Subject ID is required",
+      "string.base": "Subject ID must be a string",
+      "string.empty": "Subject ID cannot be empty",
+    }),
+  }),
+};

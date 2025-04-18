@@ -91,3 +91,18 @@ export const getGroupWeeklyAttendanceSchema = {
       }),
   }),
 };
+
+export const downloadAttendanceSchema = {
+  params: Joi.object({
+    groupId: Joi.string().custom(objectIdValidation).required().messages({
+      "any.required": "Group ID is required",
+      "string.empty": "Group ID is required",
+    }),
+  }),
+  query: Joi.object({
+    week: Joi.number().integer().min(1).required().messages({
+      "any.required": "Week number is required",
+      "number.base": "Week must be a number",
+    }),
+  }),
+}

@@ -508,9 +508,7 @@ export const assignStaffToGroup = async (req, res, next) => {
       <p>Please check your dashboard for more details.</p>
       <p>Best regards,<br>University Administration</p>
     `;
-    
-    console.log(staff.user_id.email);
-    
+
     try {
       await sendEmail({
         to: staff.user_id.email,

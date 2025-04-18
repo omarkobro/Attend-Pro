@@ -3,8 +3,8 @@ import { authorizeRole } from "../../middlewares/authorization.middleware.js";
 import { validationMiddleware } from "../../middlewares/validation.middleware.js";
 import { auth } from "../../middlewares/auth.middleware.js";
 import { systemRoles } from "../../utils/systemRoles.js";
-import {  activateSubject,   createSubject, deactivateSubject, getAllSubjects, getSubjectById, updateSubject } from "./subject.controller.js";
-import { activateSubjectValidation, createSubjectValidation, deactivateSubjectValidation, getAllSubjectsValidation, getSubjectByIdValidation,  updateSubjectValidation } from "./subject.validation.js";
+import {  activateSubject,   createSubject, deactivateSubject, getAllSubjects, getAssignedGroupsForStaff, getSubjectById, getSubjectsForStaff, updateSubject } from "./subject.controller.js";
+import { activateSubjectValidation, createSubjectValidation, deactivateSubjectValidation, getAllSubjectsValidation, getAssignedGroupsForStaffSchema, getSubjectByIdValidation,  getSubjectsForStaffSchema,  updateSubjectValidation } from "./subject.validation.js";
 import expressAsyncHandler from "express-async-handler";
 
 const router = express.Router();
@@ -32,6 +32,20 @@ router.patch(
 router.get("/getAllSubjects", auth,  validationMiddleware(getAllSubjectsValidation), expressAsyncHandler(getAllSubjects));
 
 router.get("/getSubjectById/:subjectId", auth,  validationMiddleware(getSubjectByIdValidation), expressAsyncHandler(getSubjectById)); 
+
+router.get(
+  "/getAllSubjectForAstaff/:staff_id",
+  auth,
+  validationMiddleware(getSubjectsForStaffSchema),
+  expressAsyncHandler(getSubjectsForStaff)
+);
+
+router.get(
+  "/getSubjectsForStaffForSubject/staff/:staffId/subject/:subjectId",
+  auth,
+  validationMiddleware(getAssignedGroupsForStaffSchema),
+  expressAsyncHandler(getAssignedGroupsForStaff)
+);
 
 // router.post("/assignStaffToSubject/:subjectId", auth, authorizeRole([systemRoles.ADMIN]),  validationMiddleware(assignStaffValidation), expressAsyncHandler(assignStaffToSubject)); 
 

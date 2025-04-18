@@ -301,6 +301,77 @@ const sendBulkEmailsV2 = async (emails, subjectName) => {
   }
 };
 
+//================================= Get all subjects for a staff memebr ==============================
+export const getSubjectsForStaff = async (req, res) => {
+  const { staff_id } = req.params;
+
+  // 1. Check staff exists
+  const staff = await Staff.findById(staff_id).lean();
+  if (!staff) {
+    return res.status(404).json({
+      success: false,
+      message: "Staff member not found.",
+    });
+  }
+
+  // 2. If no subjects assigned
+  if (!staff.subjects || staff.subjects.length === 0) {
+    return res.status(200).json({
+      success: true,
+      message: "No subjects assigned to this staff member.",
+      subjects: [],
+    });
+  }
+
+  // 3. Fetch and filter subjects that are not soft-deleted
+  const subjects = await Subject.find({
+    _id: { $in: staff.subjects },
+    isDeleted: false,
+  })
+    .select("name code year department")
+    .populate("department", "name") // Optional: Populate department name
+    .lean();
+
+  // 4. Return structured response
+  return res.status(200).json({
+    success: true,
+    total: subjects.length,
+    staff_id,
+    subjects,
+  });
+};
+
+
+// //==============================  Get All groups for a staff under a specific subject API =======================
+export const getAssignedGroupsForStaff = async (req, res, next) => {
+  const { staffId, subjectId } = req.params;
+
+  const staff = await Staff.findById(staffId);
+  if (!staff) {
+    return next(new Error("Staff member not found", { cause: 404 }));
+  }
+
+  const subject = await Subject.findOne({ _id: subjectId, isDeleted: false });
+  if (!subject) {
+    return next(new Error("Subject not found or has been deleted", { cause: 404 }));
+  }
+
+  const assignedGroups = await Group.find({
+    subject_id: subjectId,
+    isDeleted: false,
+    staff: { $elemMatch: { staff_id: staffId } },
+  })
+    .populate("subject_id", "name code") 
+    .select("name subject_id staff"); 
+
+  return res.status(200).json({
+    status: "success",
+    results: assignedGroups.length,
+    data: assignedGroups,
+  });
+};
+
+
 
 // //============================== ASSIGN Staff to Subjects  API =======================
 
