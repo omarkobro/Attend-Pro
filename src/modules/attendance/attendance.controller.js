@@ -1,5 +1,6 @@
 import Attendance from "../../../DB/models/attendance.model.js";
 import Group from "../../../DB/models/group.model.js";
+import Staff from "../../../DB/models/staff.model.js";
 import Subject from "../../../DB/models/subject.model.js";
 import Student from "../../../DB/models/student.model.js";
 import Device from "../../../DB/models/device.model.js";
@@ -7,6 +8,7 @@ import Notification from "../../../DB/models/notification.model.js";
 import { io } from "../../utils/socket.js";
 import mqttClient from "../../utils/mqtt.connection.js";
 import { generateAttendancePDF } from "../../utils/pdfkit.js";
+import { AppError } from "../../utils/appError.js";
 
 //===================== Get Group Weekly Attendance =========================
 // export const getGroupWeeklyAttendance = async (req, res) => {
@@ -251,3 +253,148 @@ export const downloadGroupAttendance = async (req, res) => {
 
   pdfDoc.pipe(res);
 };
+
+//======================== Update Attendance Status ========================
+export const updateAttendanceStatus = async (req, res) => {
+  const { attendanceId } = req.params;
+  const { newStatus } = req.body;
+  const staffUserId = req.authUser._id;
+
+  // 1. Fetch attendance record
+  const attendance = await Attendance.findById(attendanceId)
+    .populate("group")
+    .populate("student");
+
+  if (!attendance) {
+    return res.status(404).json({ message: "Attendance session not found" });
+  }
+
+  const { group, student, sessionType } = attendance;
+  if (!group || !student) {
+    return res.status(400).json({ message: "Attendance record is missing group or student information" });
+  }
+
+  // 2. Fetch staff profile
+  const staff = await Staff.findOne({ user_id: staffUserId });
+  if (!staff) {
+    return res.status(404).json({ message: "Staff profile not found" });
+  }
+
+  // 3. Confirm the staff is assigned to this group
+  const staffAssignment = group.staff.find((s) => s.staff_id.toString() === staff._id.toString());
+  if (!staffAssignment) {
+    return res.status(403).json({ message: "You are not assigned to this group" });
+  }
+
+  // 4. Check role-based permissions
+  const staffRole = staffAssignment.role; // from group
+  const isLecture = sessionType === "lecture";
+  const isLab = sessionType === "lab";
+
+  const roleAllowed =
+    (isLecture && staffRole === "lecturer") ||
+    (isLab && (staffRole === "lecturer" || staffRole === "assistant_lecturer"));
+
+  if (!roleAllowed) {
+    return res.status(403).json({
+      message: "You are not authorized to update attendance for this session type",
+    });
+  }
+
+// 5. Update status and approval
+const wasPending = ["pending", "checked-in-pending"].includes(attendance.status); // original status
+
+attendance.status = newStatus;
+
+if (wasPending) {
+  if (newStatus === "attended") {
+    attendance.approved = "approved";
+  } else if (newStatus === "absent") {
+    attendance.approved = "rejected";
+  } else {
+    attendance.approved = "unreviewed";
+  }
+}
+
+await attendance.save();
+
+  // 6. Success response
+  return res.status(200).json({
+    message: "Attendance status updated successfully",
+    data: {
+      student: student._id,
+      newStatus: attendance.status,
+      approved: attendance.approved,
+    },
+  });
+};
+
+//====================== get Weekly Attendance For Group ===========================
+export const getWeeklyAttendanceForGroup = async (req, res, next) => {
+  const { groupId } = req.params;
+  const staffUserId = req.authUser._id;
+
+  // 1. Get staff document using user_id
+  const staffProfile = await Staff.findOne({ user_id: staffUserId });
+  if (!staffProfile) return next(new AppError("Staff profile not found", 404));
+
+  // 2. Fetch group and verify staff assignment
+  const group = await Group.findById(groupId);
+  if (!group) return next(new AppError("Group not found", 404));
+
+  const staffAssignment = group.staff.find(
+    (s) => s.staff_id.toString() === staffProfile._id.toString()
+  );
+
+  if (!staffAssignment) {
+    return next(new AppError("You are not assigned to this group", 403));
+  }
+
+  // 3. Determine allowed session types based on staff **position**
+  const staffPosition = staffProfile.position;
+  let allowedSessionTypes = [];
+
+  if (staffPosition === "Lecturer") {
+    allowedSessionTypes = ["lecture"];
+  } else if (staffPosition === "Assistant-lecturer") {
+    allowedSessionTypes = ["lab"];
+  } else {
+    return next(new AppError("Invalid staff position", 400));
+  }
+
+  // 4. Get attendance records for the group with allowed session types
+  const records = await Attendance.find({
+    group: groupId,
+    sessionType: { $in: allowedSessionTypes },
+  })
+    .populate({
+      path: "student",
+      populate: { path: "user_id", select: "-password -refresh_tokens -token_blacklist" },
+    })
+    .sort({ weekNumber: 1, sessionDate: 1 });
+
+  // 5. Group by weekNumber and limit to first 3 per week
+  const grouped = {};
+
+  for (const record of records) {
+    const week = record.weekNumber;
+    if (!grouped[week]) grouped[week] = [];
+    if (grouped[week].length < 3) grouped[week].push(record);
+  }
+
+  // 6. Format response
+  const result = Object.entries(grouped)
+    .map(([weekNumber, records]) => ({
+      weekNumber: Number(weekNumber),
+      records,
+    }))
+    .sort((a, b) => a.weekNumber - b.weekNumber);
+
+  return res.status(200).json({
+    message: "Weekly attendance retrieved successfully",
+    data: result,
+  });
+};
+
+
+

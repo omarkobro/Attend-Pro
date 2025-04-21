@@ -22,8 +22,8 @@ export const signUpStudent = async (req, res, next) => {
     firstName,
     lastName,
     phoneNumber,
-    department,
-    year 
+    // department,
+    // year 
   } = req.body;
   // 1. Check for existing user (by email or university email)
   const emailExist = await User.findOne({ email });
@@ -103,8 +103,7 @@ export const signUpStudent = async (req, res, next) => {
   const student = new Student({
     user_id: user._id,
     student_name: `${firstName} ${lastName}`,
-    department,
-    year,
+    department : "65f0a1b6c5a2f0a1b6c5a2f1",
     groups: [],
   });
 
@@ -406,63 +405,75 @@ export const resendVerificationEmail = async (req, res, next) => {
 
 
 // //=========================  Login ===============================
-
-export const login= async (req, res, next) => {
+export const login = async (req, res, next) => {
   try {
-      const { email, password } = req.body;
-      const user = await User.findOne({ email });
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
 
-      if (!user) {
-          return res.status(401).json({ err_msg: "Invalid email or password." });
+    if (!user) {
+      return res.status(401).json({ err_msg: "Invalid email or password." });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ err_msg: "Invalid email or password." });
+    }
+
+    if (!user.isVerified) {
+      return res.status(403).json({ err_msg: "Please verify your email before logging in." });
+    }
+
+    // Generate Access Token
+    const accessToken = jwt.sign(
+      { user_id: user._id, role: user.role },
+      process.env.LOGIN_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    // Generate Refresh Token
+    const refreshToken = crypto.randomBytes(40).toString("hex");
+
+    // Save Refresh Token
+    await refreshTokensModel.create({
+      user_id: user._id,
+      token: refreshToken,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
+
+    // Set Refresh Token Cookie
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    // Additional Role-Based Info
+    let extra = null;
+
+    if (user.role === "staff" || user.role === "admin") {
+      extra = await Staff.findOne({ user_id: user._id }).lean();
+    } else if (user.role === "student") {
+      const student = await Student.findOne({ user_id: user._id }).select("_id").lean();
+      if (student) {
+        extra = { student_id: student._id };
       }
-      const isPasswordValid = await bcrypt.compare(password, user.password);
-      if (!isPasswordValid) {
-          return res.status(401).json({ err_msg: "Invalid email or password." });
-      }
-
-      if (!user.isVerified) {
-        return res.status(403).json({ err_msg: "Please verify your email before logging in." });
-      }
-
-      // Generate Access Token
-      const accessToken = jwt.sign(
-          { user_id: user._id, role: user.role },
-          process.env.LOGIN_SECRET,
-          { expiresIn: "1d" } // Short expiry for security
-      );
-
-      // Generate Refresh Token (secure, random)
-      const refreshToken = crypto.randomBytes(40).toString("hex");
-
-      // Store Refresh Token in DB
-      await refreshTokensModel.create({
-          user_id: user._id,
-          token: refreshToken,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Expires in 7 days
-      });
-
-      // Send Tokens (Set refresh token as HTTP-only cookie for security)
-      res.cookie("refreshToken", refreshToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "strict",
-          maxAge: 7 * 24 * 60 * 60 * 1000,
-      });
-
-      res.status(200).json({
-          msg: "Login successful",
-          accessToken,
-          user: {
-              id: user._id,
-              email: user.email,
-              role: user.role,
-          },
-      });
+    }
+    
+    res.status(200).json({
+      message: "Login successful",
+      accessToken,
+      user: {
+        user_id: user._id,
+        email: user.email,
+        role: user.role,
+        ...extra, // includes staff doc or student_id
+      },
+    });
   } catch (error) {
-      return next(error);
+    return next(error);
   }
 };
-
 
 // //=========================  refresh token ===============================
 

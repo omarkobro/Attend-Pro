@@ -525,7 +525,7 @@ export const assignStaffToGroup = async (req, res, next) => {
       message: "Staff assigned to group successfully",
       data: {
         groupId: group._id,
-        staff: group.staff,
+        staff: group.staff.map(({ staff_id, role }) => ({ staff_id, role })),
       },
     });
   };

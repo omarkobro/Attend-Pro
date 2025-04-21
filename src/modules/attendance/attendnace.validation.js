@@ -106,3 +106,35 @@ export const downloadAttendanceSchema = {
     }),
   }),
 }
+
+export const updateAttendanceStatusSchema = {
+  params: Joi.object({
+    attendanceId: Joi.string()
+      .custom(objectIdValidation)
+      .required()
+      .messages({
+        "any.required": "Attendance ID is required",
+        "string.empty": "Attendance ID cannot be empty",
+      })
+  }),
+  body: Joi.object({
+    newStatus: Joi.string()
+      .valid("attended", "absent", "pending", "checked-in-pending")
+      .required()
+      .messages({
+        "any.required": "New status is required",
+        "string.empty": "New status cannot be empty",
+        "any.only": "Status must be one of: attended, absent, pending, check-in-pending",
+      }),
+  }),
+};
+
+export const getWeeklyAttendanceForGroupSchema = {
+  params: Joi.object({
+    groupId: Joi.string().custom(objectIdValidation).required().messages({
+      "any.required": "Group ID is required",
+      "string.empty": "Group ID cannot be empty",
+      "string.custom": "Invalid Group ID format",
+    }),
+  }),
+};

@@ -25,7 +25,7 @@ const staffSchema = new Schema({
         enum: ['Assistant-lecturer', 'Lecturer'], 
         default: 'Lecturer' 
     },
-    subjects: [{ type: Schema.Types.ObjectId, ref: 'Subject' }], // ✅ Keep it flat
+    subjects: [{ type: Schema.Types.ObjectId, ref: 'Subject' }], 
     join_date: { 
         type: Date, 
         default: Date.now 

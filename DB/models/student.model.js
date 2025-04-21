@@ -32,6 +32,7 @@ const studentSchema = new Schema({
     },
     year : {
         type : Number ,
+        default : 1
     },
     // subjects: [{ type: Schema.Types.ObjectId, ref: 'Subject' }],
     groups: [{ type: Schema.Types.ObjectId, ref: 'Group' }]
