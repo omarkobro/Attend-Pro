@@ -10,43 +10,53 @@ import mqttClient from "../../utils/mqtt.connection.js";
 
 //================== Check-In Handler Functions =======================
 export const handleCheckInRequest = async (payload) => {
-  console.log("test 7mody");
-  
-  const { student_id, rfid_tag, device_id, marked_by } = payload;
+  console.log("📥 [Check-In] Payload received:", payload);
 
+  const { student_id, rfid_tag, device_id, marked_by } = payload;
   const responseTopic = `attendance/check-in/response/${device_id}`;
   const now = new Date();
 
-  // Fetch and validate device
+  // 1. Fetch and validate device
   const device = await Device.findOne({ device_id }).lean();
-  if (!device || device.status !== "reserved" || device.sessionMode !== "check-in") {
+  console.log("📟 [Check-In] Device fetched:", device);
+
+  if (!device) {
+    console.warn("❌ [Check-In] Device not found");
+    return mqttClient.publish(responseTopic, JSON.stringify({
+      success: false,
+      message: "Device not found"
+    }));
+  }
+
+  if (device.status !== "reserved" || device.sessionMode !== "check-in") {
+    console.warn("❌ [Check-In] Device is not ready:", {
+      status: device.status,
+      sessionMode: device.sessionMode
+    });
     return mqttClient.publish(responseTopic, JSON.stringify({
       success: false,
       message: "Device is not ready for check-in"
     }));
   }
 
-  // Fetch student with groups populated with subject_id
+  // 2. Fetch student with populated fields
   let student = null;
   if (student_id) {
     student = await Student.findOne({ student_id })
       .populate("user_id", "firstName lastName email")
-      .populate({
-        path: "groups",
-        select: "_id subject_id"
-      })
+      .populate({ path: "groups", select: "_id subject_id" })
       .lean();
   } else if (rfid_tag) {
     student = await Student.findOne({ rfid_tag })
       .populate("user_id", "firstName lastName email")
-      .populate({
-        path: "groups",
-        select: "_id subject_id"
-      })
+      .populate({ path: "groups", select: "_id subject_id" })
       .lean();
   }
 
+  console.log("🎓 [Check-In] Student fetched:", student);
+
   if (!student) {
+    console.warn("❌ [Check-In] Student not found for:", student_id || rfid_tag);
     return mqttClient.publish(responseTopic, JSON.stringify({
       success: false,
       message: `Student not found for ${student_id || rfid_tag}`,
@@ -54,6 +64,7 @@ export const handleCheckInRequest = async (payload) => {
   }
 
   if (student_id && rfid_tag && student.rfid_tag !== rfid_tag) {
+    console.warn("❌ [Check-In] RFID tag mismatch for student_id:", student_id);
     return mqttClient.publish(responseTopic, JSON.stringify({
       success: false,
       message: "RFID tag mismatch with student ID.",
@@ -62,49 +73,65 @@ export const handleCheckInRequest = async (payload) => {
 
   const { currentSubjectId, currentGroupId, weekNumber, sessionType } = device;
 
-  // Fetch group
+  // 3. Fetch group
   const group = await Group.findById(currentGroupId).lean();
+  console.log("👥 [Check-In] Group fetched:", group);
+
   if (!group || group.subject_id.toString() !== currentSubjectId.toString()) {
+    console.warn("❌ [Check-In] Group not found or mismatched with subject");
     return mqttClient.publish(responseTopic, JSON.stringify({
       success: false,
       message: "Group mismatch or not found.",
     }));
   }
 
-  // Is student in the current group?
+  // 4. Check if student is in the group
   const isInGroup = group.students.some(id => id.toString() === student._id.toString());
+  console.log(`✅ [Check-In] isInGroup: ${isInGroup}`);
 
-  // ⏱️ Fast Response to PI
-  mqttClient.publish(responseTopic, JSON.stringify({
+  // 5. Fast Response to PI
+  const fastResponse = {
     success: true,
     message: isInGroup ? "Checked in" : "Pending check-in",
     student_id: student.student_id,
     status: isInGroup ? "checked-in" : "checked-in-pending",
     fullName: `${student.user_id.firstName} ${student.user_id.lastName}`
-  }));
+  };
+  console.log("📤 [Check-In] Fast response to MQTT:", fastResponse);
+  mqttClient.publish(responseTopic, JSON.stringify(fastResponse));
 
-  // 🔁 Continue to Part 2 in background
-  queueBackgroundCheckIn(student, device, isInGroup, marked_by, now);
+  // 6. Continue with background attendance processing
+  try {
+    await queueBackgroundCheckIn(student, device, isInGroup, marked_by, now);
+  } catch (err) {
+    console.error("🔥 [Check-In] Error in background processing:", err);
+  }
 };
 
+
+//================== Background Processing Function =======================
 const queueBackgroundCheckIn = async (student, device, isInGroup, marked_by, now) => {
+  console.log("🔁 [Queue] Background check-in started...");
+
   const sessionStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const sessionEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  console.log("🕒 [Queue] Session window:", { sessionStart, sessionEnd });
 
-  // ✅ Determine the correct group to assign the attendance to
   let groupIdToUse = device.currentGroupId;
 
   if (!isInGroup) {
     const correctGroup = student.groups.find(g =>
       g.subject_id?.toString() === device.currentSubjectId.toString()
     );
-
     if (correctGroup) {
+      console.log("📚 [Queue] Found matching group for subject:", correctGroup._id);
       groupIdToUse = correctGroup._id;
+    } else {
+      console.warn("⚠️ [Queue] No matching group for student with subject:", device.currentSubjectId);
     }
   }
 
-  // Find existing attendance if any
+  // 1. Check for existing attendance
   const existingAttendance = await Attendance.findOne({
     student: student._id,
     subject: device.currentSubjectId,
@@ -113,8 +140,10 @@ const queueBackgroundCheckIn = async (student, device, isInGroup, marked_by, now
     weekNumber: device.weekNumber,
     sessionType: device.sessionType,
   });
+  console.log("📄 [Queue] Existing attendance:", existingAttendance?._id || "None");
 
   let updatedAttendance;
+
   if (existingAttendance) {
     updatedAttendance = await Attendance.findByIdAndUpdate(
       existingAttendance._id,
@@ -125,6 +154,7 @@ const queueBackgroundCheckIn = async (student, device, isInGroup, marked_by, now
       },
       { new: true }
     );
+    console.log("✅ [Queue] Attendance updated:", updatedAttendance._id);
   } else {
     updatedAttendance = await Attendance.create({
       student: student._id,
@@ -138,9 +168,10 @@ const queueBackgroundCheckIn = async (student, device, isInGroup, marked_by, now
       status: isInGroup ? "checked-in" : "checked-in-pending",
       marked_by,
     });
+    console.log("🆕 [Queue] New attendance created:", updatedAttendance._id);
   }
 
-  // Emit socket update
+  // 2. Emit socket update
   const checkInInfo = {
     _id: updatedAttendance._id,
     student: {
@@ -151,10 +182,10 @@ const queueBackgroundCheckIn = async (student, device, isInGroup, marked_by, now
     status: updatedAttendance.status,
     checkInTime: updatedAttendance.checkInTime,
   };
-
+  console.log("📡 [Queue] Emitting socket event:", checkInInfo);
   io.to(`session-${device.currentGroupId}`).emit("student-check-in", checkInInfo);
 
-  // Save notification
+  // 3. Create notification
   const message = isInGroup
     ? "You have successfully checked in."
     : "You have been marked as pending.";
@@ -166,6 +197,7 @@ const queueBackgroundCheckIn = async (student, device, isInGroup, marked_by, now
     type: "attendance",
     related_data: { attendance_id: updatedAttendance._id }
   });
+  console.log("📨 [Queue] Notification created for student:", student.student_id);
 };
  
 

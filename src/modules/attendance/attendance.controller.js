@@ -338,8 +338,12 @@ export const getWeeklyAttendanceForGroup = async (req, res, next) => {
   const staffProfile = await Staff.findOne({ user_id: staffUserId });
   if (!staffProfile) return next(new AppError("Staff profile not found", 404));
 
+  // console.log(groupId);
+  
   // 2. Fetch group and verify staff assignment
   const group = await Group.findById(groupId);
+  // console.log(group);
+  
   if (!group) return next(new AppError("Group not found", 404));
 
   const staffAssignment = group.staff.find(
@@ -362,10 +366,12 @@ export const getWeeklyAttendanceForGroup = async (req, res, next) => {
     return next(new AppError("Invalid staff position", 400));
   }
 
+  console.log(allowedSessionTypes);
+  
   // 4. Get attendance records for the group with allowed session types
   const records = await Attendance.find({
     group: groupId,
-    sessionType: { $in: allowedSessionTypes },
+    // sessionType: { $in: allowedSessionTypes },
   })
     .populate({
       path: "student",
@@ -373,6 +379,7 @@ export const getWeeklyAttendanceForGroup = async (req, res, next) => {
     })
     .sort({ weekNumber: 1, sessionDate: 1 });
 
+    
   // 5. Group by weekNumber and limit to first 3 per week
   const grouped = {};
 

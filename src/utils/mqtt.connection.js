@@ -16,12 +16,12 @@ mqttClient.on("connect", () => {
   console.log("MQTT connected to broker");
 });
 
-mqttClient.on("error", (err) => {
-  console.error("MQTT connection error:", err);
-});
+// mqttClient.on("error", (err) => {
+//   console.error("MQTT connection error:", err);
+// });
 
 
-mqttClient.subscribe("attendance/check-in/request");
+mqttClient.subscribe("attendance/check-in/request", { qos: 1 });
 mqttClient.on("message", async (topic, message) => {
   if (topic === "attendance/check-in/request") {
     const payload = JSON.parse(message.toString());
@@ -29,7 +29,7 @@ mqttClient.on("message", async (topic, message) => {
   }
 });
 
-mqttClient.subscribe("attendance/check-out/request");
+mqttClient.subscribe("attendance/check-out/request", { qos: 1 });
 mqttClient.on("message", async (topic, message) => {
   if (topic === "attendance/check-out/request") {
     const payload = JSON.parse(message.toString());
@@ -37,5 +37,30 @@ mqttClient.on("message", async (topic, message) => {
   }
 }); 
 
+
+// mqttClient.on("connect", () => {
+//   console.log("MQTT connected to broker ✅");
+
+//   // 🔹 Temporary test payload for handleCheckInRequest
+//   const testPayload = {
+//     student_id: "42021146", // 🧪 Replace with valid student_id
+//     // rfid_tag: "AA:BB:CC:DD", // 🧪 Optional: must match the student's tag if provided
+//     device_id: "1", // 🧪 Must exist in DB and be in 'reserved' + 'check-in' mode
+//     marked_by: "face_recognition" // Can be "face", "rfid", etc.
+//   };
+
+//   mqttClient.publish(
+//     "attendance/check-in/request",
+//     JSON.stringify(testPayload),
+//     { qos: 1 },
+//     (err) => {
+//       if (err) {
+//         console.error("❌ Failed to publish test check-in:", err);
+//       } else {
+//         console.log("📨 Test check-in request sent");
+//       }
+//     }
+//   );
+// });
 
 export default mqttClient;
