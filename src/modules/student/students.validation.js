@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { objectIdValidation } from "../../utils/generalValidation.js";  // Assuming you have this custom validation.
+import { objectIdValidation } from "../../utils/generalValidation.js";  
 
 export const updateStudentSchema = {
   body: Joi.object({

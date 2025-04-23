@@ -583,14 +583,16 @@ export const rejectAllPendingStudents = async (req, res) => {
 
 
 //================ Get Student Attendance  ================
-export const getStudentAttendanceHistory = async (req, res) => {
+export const getStudentAttendanceHistory = async (req, res,next) => {
   const { studentId } = req.params;
   const { sort = "desc" } = req.query;
-  const requesterId = req.authUser._id;
   const requesterRole = req.authUser.role;
 
+  const student = await Student.findOne({ user_id: req.authUser._id });
+  if (!student) return next(new AppError("student not found", 404));
+
   // 1. Allow only the logged-in student or an admin
-  if (requesterRole === "student" && requesterId.toString() !== studentId) {
+  if (requesterRole === "student" && student._id.toString() !== studentId) {
     return res.status(403).json({ message: "You are not authorized to access this student's history" });
   }
 

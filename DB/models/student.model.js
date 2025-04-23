@@ -34,7 +34,6 @@ const studentSchema = new Schema({
         type : Number ,
         default : 1
     },
-    // subjects: [{ type: Schema.Types.ObjectId, ref: 'Subject' }],
     groups: [{ type: Schema.Types.ObjectId, ref: 'Group' }]
 },{timestamps:true})
 
