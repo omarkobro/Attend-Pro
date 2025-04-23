@@ -138,3 +138,86 @@ export const getWeeklyAttendanceForGroupSchema = {
     }),
   }),
 };
+
+
+export const getSessionResultValidation = {
+  params: Joi.object({
+    groupId: Joi.string().custom(objectIdValidation).required().messages({
+      "any.required": "Group ID is required",
+      "string.empty": "Group ID cannot be empty",
+      "string.custom": "Invalid Group ID format",
+    }),
+  }),
+  query: Joi.object({
+    sessionDate: Joi.date().iso().required().messages({
+      "date.iso": "sessionDate must be in valid ISO format (YYYY-MM-DD).",
+      "any.required": "sessionDate is required",
+    }),
+    sessionType: Joi.string()
+      .valid("lecture", "lab")
+      .required()
+      .messages({
+        "any.required": "sessionType is required",
+        "any.only": "sessionType must be 'lecture' or 'lab'",
+      }),
+  }),
+};
+
+export const acceptAllPendingStudentsSchema = {
+  params: Joi.object({
+    groupId: Joi.string().custom(objectIdValidation).required().messages({
+      "any.required": "Group ID is required",
+      "string.empty": "Group ID cannot be empty",
+      "string.custom": "Invalid Group ID format",
+    }),
+  }),
+  body: Joi.object({
+    sessionDate: Joi.date().required().messages({
+      "any.required": "Session date is required",
+      "date.base": "Session date must be a valid date",
+    }),
+    sessionType: Joi.string().valid("lecture", "lab").required().messages({
+      "any.required": "Session type is required",
+      "any.only": "Session type must be either 'lecture' or 'lab'",
+    }),
+  }),
+};
+
+export const rejectAllPendingStudentsSchema = {
+  params: Joi.object({
+    groupId: Joi.string().custom(objectIdValidation).required().messages({
+      "any.required": "Group ID is required",
+      "string.empty": "Group ID cannot be empty",
+      "string.custom": "Invalid Group ID format",
+    }),
+  }),
+  body: Joi.object({
+    sessionDate: Joi.date().required().messages({
+      "any.required": "Session date is required",
+      "date.base": "Session date must be a valid date",
+    }),
+    sessionType: Joi.string().valid("lecture", "lab").required().messages({
+      "any.required": "Session type is required",
+      "any.only": "Session type must be either 'lecture' or 'lab'",
+    }),
+  }),
+};
+
+
+export const getAttendanceHistorySchema = {
+  params: Joi.object({
+    studentId: Joi.string().custom(objectIdValidation).required().messages({
+      "any.required": "Student ID is required",
+      "string.empty": "Student ID cannot be empty",
+      "string.custom": "Invalid Student ID format",
+    }),
+  }),
+  query: Joi.object({
+    sort: Joi.string()
+      .valid("asc", "desc")
+      .optional()
+      .messages({
+        "string.valid": "Sort must be either 'asc' or 'desc'",
+      }),
+  }),
+};

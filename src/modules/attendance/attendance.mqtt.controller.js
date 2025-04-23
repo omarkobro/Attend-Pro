@@ -205,8 +205,6 @@ const queueBackgroundCheckIn = async (student, device, isInGroup, marked_by, now
 export const handleCheckOutRequest = (payload) => {
   const { rfid_tag, student_id, device_id } = payload;
 
-  console.log("hello2");
-  
   // Basic validation
   if (!rfid_tag && !student_id) {
     return mqttClient.publish(
@@ -239,8 +237,6 @@ export const handleCheckOutRequest = (payload) => {
     { qos: 1 }
     
   );
-
-  console.log("f1 success");
   
   // Background processing
   handleCheckOutInBackground(payload);
@@ -291,11 +287,6 @@ const handleCheckOutInBackground = async (payload) => {
     const sessionStart = new Date(now.setHours(0, 0, 0, 0));
     const sessionEnd = new Date(now.setHours(23, 59, 59, 999));
 
-    console.log(student._id);
-    console.log(currentSubjectId);
-    console.log(currentGroupId);
-    console.log(weekNumber);
-    console.log(sessionType);
     
     const attendance = await Attendance.findOne({
       student: student._id,
@@ -314,6 +305,8 @@ const handleCheckOutInBackground = async (payload) => {
     }
 
     let newStatus = attendance.status;
+    console.log(newStatus);
+    
     if (attendance.status === "checked-in") {
       newStatus = "attended";
     } else if (attendance.status === "checked-in-pending") {

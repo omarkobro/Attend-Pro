@@ -50,7 +50,7 @@ mqttClient.on("message", async (topic, message) => {
 //   };
 
 //   mqttClient.publish(
-//     "attendance/check-in/request",
+//     "attendance/check-out/request",
 //     JSON.stringify(testPayload),
 //     { qos: 1 },
 //     (err) => {

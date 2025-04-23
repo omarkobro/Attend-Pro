@@ -404,4 +404,209 @@ export const getWeeklyAttendanceForGroup = async (req, res, next) => {
 };
 
 
+//====================== get Session Attendance Result ========================
+export const getAttendanceResultsForSession = async (req, res, next) => {
+  const { groupId } = req.params;
+  const { sessionDate, sessionType } = req.query;
 
+  if (!sessionDate || !sessionType) {
+    return next(new AppError("sessionDate and sessionType are required", 400));
+  }
+
+  // Validate sessionType
+  if (!["lecture", "lab"].includes(sessionType)) {
+    return next(new AppError("Invalid sessionType value", 400));
+  }
+
+  // Parse sessionDate boundaries
+  const parsedDate = new Date(sessionDate);
+  if (isNaN(parsedDate)) {
+    return next(new AppError("Invalid sessionDate format", 400));
+  }
+
+  const sessionStart = new Date(parsedDate.setHours(0, 0, 0, 0));
+  const sessionEnd = new Date(parsedDate.setHours(23, 59, 59, 999));
+
+  // Fetch all attendance records for that session
+  const records = await Attendance.find({
+    group: groupId,
+    sessionType,
+    sessionDate: { $gte: sessionStart, $lte: sessionEnd },
+  }).populate({
+    path: "student",
+    populate: {
+      path: "user_id",
+      select: "-password -pfp -refresh_tokens -token_blacklist",
+    },
+  });
+
+    
+  // Separate into attended and pending
+  const attended = [];
+  const pending = [];
+
+  for (const record of records) {
+    if (record.status === "attended") {
+      attended.push(record);
+    } else if (
+      record.status === "pending" &&
+      record.checkOutTime 
+    ) {
+      pending.push(record);
+    }
+  }
+  
+  return res.status(200).json({
+    message: "Final session snapshot retrieved successfully",
+    data: {
+      attended,
+      pending,
+    },
+  });
+};
+
+//====== ========== Accept All Pending Students for a Session ================
+export const acceptAllPendingStudents = async (req, res, next) => {
+  const { groupId } = req.params;
+  const { sessionDate, sessionType } = req.body;
+  const staffUserId = req.authUser._id;
+
+  // 1. Get staff profile
+  const staffProfile = await Staff.findOne({ user_id: staffUserId });
+  if (!staffProfile) return next(new AppError("Staff profile not found", 404));
+
+  // 2. Fetch group and verify staff assignment
+  const group = await Group.findById(groupId);
+  if (!group) return next(new AppError("Group not found", 404));
+
+  const staffAssignment = group.staff.find(
+    (s) => s.staff_id.toString() === staffProfile._id.toString()
+  );
+  if (!staffAssignment) {
+    return next(new AppError("You are not assigned to this group", 403));
+  }
+
+  // 3. Find all pending attendance records for the given session
+  const recordsToUpdate = await Attendance.find({
+    group: groupId,
+    sessionDate: new Date(sessionDate),
+    sessionType,
+    status: "pending",
+    approved: "unreviewed",
+  });
+
+  if (recordsToUpdate.length === 0) {
+    return res.status(200).json({
+      message: "No pending records to approve",
+      data: [],
+    });
+  }
+
+  // 4. Update records
+  const bulkOps = recordsToUpdate.map((record) => ({
+    updateOne: {
+      filter: { _id: record._id },
+      update: { $set: { status: "attended", approved: "approved" } },
+    },
+  }));
+
+  await Attendance.bulkWrite(bulkOps);
+
+  // 5. Fetch updated records (with student info)
+  const updatedRecords = await Attendance.find({
+    _id: { $in: recordsToUpdate.map((r) => r._id) },
+  }).populate({
+    path: "student",
+    populate: {
+      path: "user_id",
+      select: "firstName lastName email university_email student_id",
+    },
+  });
+
+  return res.status(200).json({
+    message: "All pending students have been approved",
+    data: updatedRecords,
+  });
+};
+
+
+//================ Reject All Pending Students for a Session ================
+export const rejectAllPendingStudents = async (req, res) => {
+  const { groupId } = req.params;
+  const { sessionDate, sessionType } = req.body;
+
+  const parsedSessionDate = new Date(sessionDate);
+
+  const updatedAttendances = await Attendance.updateMany(
+    {
+      group: groupId,
+      sessionDate: {
+        $gte: new Date(parsedSessionDate.setHours(0, 0, 0, 0)),
+        $lte: new Date(parsedSessionDate.setHours(23, 59, 59, 999)),
+      },
+      sessionType,
+      status: "pending",
+    },
+    {
+      $set: {
+        status: "absent",
+        approved: "rejected",
+      },
+    }
+  );
+
+  const updatedStudents = await Attendance.find({
+    group: groupId,
+    sessionDate: {
+      $gte: new Date(parsedSessionDate.setHours(0, 0, 0, 0)),
+      $lte: new Date(parsedSessionDate.setHours(23, 59, 59, 999)),
+    },
+    sessionType,
+    status: "absent",
+    approved: "rejected",
+  })
+    .populate({
+      path: "student",
+      populate: {
+        path: "user_id",
+        select: "firstName lastName email university_email",
+      },
+    })
+    .select("student status approved");
+
+  res.status(200).json({
+    message: "All pending students have been rejected",
+    updatedCount: updatedAttendances.modifiedCount,
+    students: updatedStudents,
+  });
+};
+
+
+//================ Get Student Attendance  ================
+export const getStudentAttendanceHistory = async (req, res) => {
+  const { studentId } = req.params;
+  const { sort = "desc" } = req.query;
+  const requesterId = req.authUser._id;
+  const requesterRole = req.authUser.role;
+
+  // 1. Allow only the logged-in student or an admin
+  if (requesterRole === "student" && requesterId.toString() !== studentId) {
+    return res.status(403).json({ message: "You are not authorized to access this student's history" });
+  }
+
+  // 2. Fetch attendance records excluding "absent"
+  const attendanceRecords = await Attendance.find({
+    student: studentId,
+    status: { $ne: "absent" },
+  })
+    .sort({ sessionDate: sort === "asc" ? 1 : -1 })
+    .populate("subject", "name code")
+    .populate("group", "name")
+    .select("status approved checkInTime checkOutTime sessionDate weekNumber sessionType subject group");
+
+  return res.status(200).json({
+    message: "Attendance history fetched successfully",
+    total: attendanceRecords.length,
+    data: attendanceRecords,
+  });
+};
