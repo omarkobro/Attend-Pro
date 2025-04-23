@@ -97,14 +97,12 @@ export const getAllGeneralSchedules = async (req, res) => {
       filter.year = parseInt(year);
     }
   
-    console.log("Group Name:", group_name);
   
     // Apply group filter if provided
     if (group_name) {
       filter.group_name = group_name; // Directly filter by group_name (no need for ObjectId lookup)
     }
   
-    console.log("Final Filter:", filter);
   
     // Fetch schedules
     const schedules = await GeneralSchedule.find(filter)
@@ -113,7 +111,6 @@ export const getAllGeneralSchedules = async (req, res) => {
         select: "name",
       });
   
-    console.log("Schedules Found:", schedules);
   
     return res.status(200).json({
       message: "General schedules retrieved successfully",
