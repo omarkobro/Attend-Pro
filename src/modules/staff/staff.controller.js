@@ -134,83 +134,83 @@ export const getAllStaff = async (req, res, next) => {
   };
 
 //==================== delete staff member =================== 
-export const deleteStaff = async (req, res, next) => {
-    const { staffId } = req.params;
+// export const deleteStaff = async (req, res, next) => {
+//     const { staffId } = req.params;
   
-    // 1. Get the staff document
-    const staff = await Staff.findById(staffId);
-    if (!staff) {
-      return next(new AppError("Staff not found", 404));
-    }
+//     // 1. Get the staff document
+//     const staff = await Staff.findById(staffId);
+//     if (!staff) {
+//       return next(new AppError("Staff not found", 404));
+//     }
   
-    const userId = staff.user_id;
-    const email = await User.findById(userId).then(user => user?.email);
+//     const userId = staff.user_id;
+//     const email = await User.findById(userId).then(user => user?.email);
   
-    // === Store state for rollback ===
-    const groupsWithStaff = await Group.find({ "staff.staff_id": staffId });
-    const groupUpdatesBackup = groupsWithStaff.map(group => ({
-      groupId: group._id,
-      originalStaffArray: [...group.staff],
-    }));
+//     // === Store state for rollback ===
+//     const groupsWithStaff = await Group.find({ "staff.staff_id": staffId });
+//     const groupUpdatesBackup = groupsWithStaff.map(group => ({
+//       groupId: group._id,
+//       originalStaffArray: [...group.staff],
+//     }));
   
-    // 2. Remove staff from all group.staff arrays
-    const groupUpdatePromises = groupsWithStaff.map(group =>
-      Group.updateOne(
-        { _id: group._id },
-        { $pull: { staff: { staff_id: staffId } } }
-      )
-    );
-    const groupUpdateResults = await Promise.allSettled(groupUpdatePromises);
+//     // 2. Remove staff from all group.staff arrays
+//     const groupUpdatePromises = groupsWithStaff.map(group =>
+//       Group.updateOne(
+//         { _id: group._id },
+//         { $pull: { staff: { staff_id: staffId } } }
+//       )
+//     );
+//     const groupUpdateResults = await Promise.allSettled(groupUpdatePromises);
   
-    const failedGroupUpdate = groupUpdateResults.find(r => r.status === "rejected");
-    if (failedGroupUpdate) {
-      // Rollback any successful updates
-      const rollbackPromises = groupUpdatesBackup.map(backup =>
-        Group.updateOne(
-          { _id: backup.groupId },
-          { $set: { staff: backup.originalStaffArray } }
-        )
-      );
-      await Promise.all(rollbackPromises);
-      return next(new AppError("Failed to update group associations. Rolled back.", 500));
-    }
+//     const failedGroupUpdate = groupUpdateResults.find(r => r.status === "rejected");
+//     if (failedGroupUpdate) {
+//       // Rollback any successful updates
+//       const rollbackPromises = groupUpdatesBackup.map(backup =>
+//         Group.updateOne(
+//           { _id: backup.groupId },
+//           { $set: { staff: backup.originalStaffArray } }
+//         )
+//       );
+//       await Promise.all(rollbackPromises);
+//       return next(new AppError("Failed to update group associations. Rolled back.", 500));
+//     }
   
-    // 3. Delete staff document
-    const deletedStaff = await Staff.findByIdAndDelete(staffId);
-    if (!deletedStaff) {
-      // Rollback group updates
-      const rollbackPromises = groupUpdatesBackup.map(backup =>
-        Group.updateOne(
-          { _id: backup.groupId },
-          { $set: { staff: backup.originalStaffArray } }
-        )
-      );
-      await Promise.all(rollbackPromises);
-      return next(new AppError("Failed to delete staff. Rolled back.", 500));
-    }
+//     // 3. Delete staff document
+//     const deletedStaff = await Staff.findByIdAndDelete(staffId);
+//     if (!deletedStaff) {
+//       // Rollback group updates
+//       const rollbackPromises = groupUpdatesBackup.map(backup =>
+//         Group.updateOne(
+//           { _id: backup.groupId },
+//           { $set: { staff: backup.originalStaffArray } }
+//         )
+//       );
+//       await Promise.all(rollbackPromises);
+//       return next(new AppError("Failed to delete staff. Rolled back.", 500));
+//     }
   
-    // 4. Delete user account
-    const deletedUser = await User.findByIdAndDelete(userId);
-    if (!deletedUser) {
-      // Rollback staff doc and groups
-      await Staff.create(staff.toObject());
-      await Promise.all(
-        groupUpdatesBackup.map(backup =>
-          Group.updateOne(
-            { _id: backup.groupId },
-            { $set: { staff: backup.originalStaffArray } }
-          )
-        )
-      );
-      return next(new AppError("Failed to delete user. Rolled back.", 500));
-    }
+//     // 4. Delete user account
+//     const deletedUser = await User.findByIdAndDelete(userId);
+//     if (!deletedUser) {
+//       // Rollback staff doc and groups
+//       await Staff.create(staff.toObject());
+//       await Promise.all(
+//         groupUpdatesBackup.map(backup =>
+//           Group.updateOne(
+//             { _id: backup.groupId },
+//             { $set: { staff: backup.originalStaffArray } }
+//           )
+//         )
+//       );
+//       return next(new AppError("Failed to delete user. Rolled back.", 500));
+//     }
   
-    // 5. Remove from allowedStaff by email (if found)
-    if (email) {
-      await AllowedStaff.findOneAndDelete({ email });
-    }
+//     // 5. Remove from allowedStaff by email (if found)
+//     if (email) {
+//       await AllowedStaff.findOneAndDelete({ email });
+//     }
   
-    return res.status(200).json({
-      message: "Staff member deleted successfully and removed from all associations.",
-    });
-  };
+//     return res.status(200).json({
+//       message: "Staff member deleted successfully and removed from all associations.",
+//     });
+//   };

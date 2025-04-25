@@ -3,8 +3,8 @@ import expressAsyncHandler from "express-async-handler";
 import { validationMiddleware } from "../../middlewares/validation.middleware.js";
 import { auth } from "../../middlewares/auth.middleware.js";
 import { authorizeRole } from "../../middlewares/authorization.middleware.js";
-import { deleteStaffValidation, getAllStaffValidation, getProfileValidation, updateStaffProfileValidation } from "./staff.validation.js";
-import { deleteStaff, getAllStaff, getStaffProfile, updateStaffProfile } from "./staff.controller.js";
+import {  getAllStaffValidation, getProfileValidation, updateStaffProfileValidation } from "./staff.validation.js";
+import {  getAllStaff, getStaffProfile, updateStaffProfile } from "./staff.controller.js";
 import { systemRoles } from "../../utils/systemRoles.js";
 
 
@@ -35,12 +35,12 @@ router.get(
     expressAsyncHandler(getAllStaff)
   );
 
-  router.delete(
-    "/deleteStaff/:staffId",
-    auth,
-    authorizeRole([systemRoles.ADMIN]),
-    validationMiddleware(deleteStaffValidation),
-    expressAsyncHandler(deleteStaff)
-  );
+  // router.delete(
+  //   "/deleteStaff/:staffId",
+  //   auth,
+  //   authorizeRole([systemRoles.ADMIN]),
+  //   validationMiddleware(deleteStaffValidation),
+  //   expressAsyncHandler(deleteStaff)
+  // );
   
 export default router; 
