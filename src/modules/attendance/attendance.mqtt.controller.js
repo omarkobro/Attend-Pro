@@ -181,6 +181,7 @@ const queueBackgroundCheckIn = async (student, device, isInGroup, marked_by, now
     },
     status: updatedAttendance.status,
     checkInTime: updatedAttendance.checkInTime,
+    sessionDate : updatedAttendance.sessionDate //Check For This with chat gpt 
   };
   console.log("📡 [Queue] Emitting socket event:", checkInInfo);
   io.to(`session-${device.currentGroupId}`).emit("student-check-in", checkInInfo);
@@ -340,6 +341,7 @@ const handleCheckOutInBackground = async (payload) => {
       },
       status: updatedAttendance.status,
       checkOutTime: updatedAttendance.checkOutTime,
+      sessionDate : updatedAttendance.sessionDate
     };
 
     io.to(`session-${currentGroupId}`).emit("student-check-out", checkOutInfo);
