@@ -407,27 +407,37 @@ export const getWeeklyAttendanceForGroup = async (req, res, next) => {
 //====================== get Session Attendance Result ========================
 export const getAttendanceResultsForSession = async (req, res, next) => {
   const { groupId } = req.params;
-  const { sessionDate, sessionType } = req.query;
+  const { sessionDate, sessionType } = req.body;
 
   if (!sessionDate || !sessionType) {
     return next(new AppError("sessionDate and sessionType are required", 400));
   }
 
-  // Validate sessionType
   if (!["lecture", "lab"].includes(sessionType)) {
     return next(new AppError("Invalid sessionType value", 400));
   }
 
-  // Parse sessionDate boundaries
-  const parsedDate = new Date(sessionDate);
-  if (isNaN(parsedDate)) {
+  // Use native Date parser to validate sessionDate
+  const parsed = new Date(sessionDate);
+  if (isNaN(parsed.getTime())) {
     return next(new AppError("Invalid sessionDate format", 400));
   }
 
-  const sessionStart = new Date(parsedDate.setHours(0, 0, 0, 0));
-  const sessionEnd = new Date(parsedDate.setHours(23, 59, 59, 999));
+  // Normalize to start and end of that day in UTC
+  const sessionStart = new Date(Date.UTC(
+    parsed.getUTCFullYear(),
+    parsed.getUTCMonth(),
+    parsed.getUTCDate(),
+    0, 0, 0, 0
+  ));
 
-  // Fetch all attendance records for that session
+  const sessionEnd = new Date(Date.UTC(
+    parsed.getUTCFullYear(),
+    parsed.getUTCMonth(),
+    parsed.getUTCDate(),
+    23, 59, 59, 999
+  ));
+
   const records = await Attendance.find({
     group: groupId,
     sessionType,
@@ -440,22 +450,17 @@ export const getAttendanceResultsForSession = async (req, res, next) => {
     },
   });
 
-    
-  // Separate into attended and pending
   const attended = [];
   const pending = [];
 
   for (const record of records) {
     if (record.status === "attended") {
       attended.push(record);
-    } else if (
-      record.status === "pending" &&
-      record.checkOutTime 
-    ) {
+    } else if (record.status === "pending" && record.checkOutTime) {
       pending.push(record);
     }
   }
-  
+
   return res.status(200).json({
     message: "Final session snapshot retrieved successfully",
     data: {

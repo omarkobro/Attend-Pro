@@ -5,8 +5,8 @@ import { auth } from "../../middlewares/auth.middleware.js";
 import { systemRoles } from "../../utils/systemRoles.js";
 import expressAsyncHandler from "express-async-handler";
 
-import { activateGroup, addStudentToGroup, assignStaffToGroup, createGroup, deactivateGroup, deleteGroupFromSubject, getAllGroups, getAllGroupsUnderSubject, getAllStaffForGroup, getGroupById, getStudentsInGroup, removeAllStaffFromGroup, removeAllStudentsFromGroup, removeStaffFromGroup, removeStudentFromGroup, updateGroup } from "./groups.controller.js";
-import { activateGroupValidation, addStudentValidationSchema, assignStaffToGroupValidation, createGroupValidation, deleteGroupFromSubjectValidation, getAllGroupsUnderSubjectValidation, getAllGroupsValidation, getAllStaffForGroupValidation, getGroupByIdValidation, getStudentsInGroupValidation, removeAllStaffFromGroupValidation, removeAllStudentsFromGroupValidation, removeStaffFromGroupValidation, removeStudentFromGroupValidation, updateGroupValidation, validateGroupId } from "./groups.validation.js";
+import { activateGroup, addStudentToGroup, assignStaffToGroup, createGroup, deactivateGroup, deleteGroupFromSubject, getAllGroups, getAllGroupsUnderSubject, getAllStaffForGroup, getGroupById, getGroupWithDetails, getStudentsInGroup, removeAllStaffFromGroup, removeAllStudentsFromGroup, removeStaffFromGroup, removeStudentFromGroup, updateGroup } from "./groups.controller.js";
+import { activateGroupValidation, addStudentValidationSchema, assignStaffToGroupValidation, createGroupValidation, deleteGroupFromSubjectValidation, getAllGroupsUnderSubjectValidation, getAllGroupsValidation, getAllStaffForGroupValidation, getGroupByIdValidation, getStudentsInGroupValidation, groupIdValidation, removeAllStaffFromGroupValidation, removeAllStudentsFromGroupValidation, removeStaffFromGroupValidation, removeStudentFromGroupValidation, updateGroupValidation, validateGroupId } from "./groups.validation.js";
 
 const router = express.Router();
 
@@ -145,4 +145,11 @@ router.post(
     expressAsyncHandler(removeAllStaffFromGroup)
   );
   
+  router.get(
+    "/getGroupDetails/group/:groupId",
+    auth,
+    authorizeRole([systemRoles.ADMIN, systemRoles.STAFF]),
+    validationMiddleware(groupIdValidation),
+    expressAsyncHandler(getGroupWithDetails)
+  );
 export default router;

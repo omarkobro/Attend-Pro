@@ -148,11 +148,17 @@ export const getSessionResultValidation = {
       "string.custom": "Invalid Group ID format",
     }),
   }),
-  query: Joi.object({
-    sessionDate: Joi.date().iso().required().messages({
-      "date.iso": "sessionDate must be in valid ISO format (YYYY-MM-DD).",
-      "any.required": "sessionDate is required",
-    }),
+  body: Joi.object({
+    sessionDate: Joi.alternatives()
+      .try(
+        Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/), // plain "YYYY-MM-DD"
+        Joi.date().iso() // ISO 8601 datetime
+      )
+      .required()
+      .messages({
+        "alternatives.match": "sessionDate must be in 'YYYY-MM-DD' or ISO format",
+        "any.required": "sessionDate is required",
+      }),
     sessionType: Joi.string()
       .valid("lecture", "lab")
       .required()

@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Group from "../../../DB/models/group.model.js";
 import Subject from "../../../DB/models/subject.model.js";
 import Notification from "../../../DB/models/notification.model.js";
+import GeneralSchedule from "../../../DB/models/generalSchedule.model.js";
 import { sendEmail } from "../../services/send-emails.service.js";
 
 import Student from "../../../DB/models/student.model.js";
@@ -782,3 +783,60 @@ export const removeAllStaffFromGroup = async (req, res, next) => {
   });
 };
 
+
+//======================== Get Group Details API =========================
+export const getGroupWithDetails = async (req, res) => {
+  const { groupId } = req.params;
+
+  const group = await Group.findById(groupId)
+    .populate({
+      path: "subject_id",
+      select: "name code year department",
+    })
+    .populate({
+      path: "staff.staff_id",
+      populate: {
+        path: "user_id",
+        select: "firstName lastName email",
+      },
+      select: "user_id role",
+    });
+
+  if (!group) {
+    return res.status(404).json({ message: "Group not found" });
+  }
+
+  const studentCount = group.students.length;
+
+  const subject = group.subject_id;
+
+  const scheduleDoc = await GeneralSchedule.findOne({
+    group_name: group.name,
+  });
+
+  const schedule = scheduleDoc
+    ? scheduleDoc.schedule.filter(
+        (entry) => entry.subject_id.toString() === subject._id.toString()
+      )
+    : [];
+
+  res.status(200).json({
+    group: {
+      _id: group._id,
+      name: group.name,
+      subject: {
+        _id: subject._id,
+        name: subject.name,
+        code: subject.code,
+        year: subject.year,
+      },
+      staff: group.staff.map((s) => ({
+        _id: s.staff_id._id,
+        role: s.role,
+        user: s.staff_id.user_id,
+      })),
+      studentCount,
+      schedule,
+    },
+  });
+};

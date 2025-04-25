@@ -159,3 +159,13 @@ export const removeAllStaffFromGroupValidation = {
     groupId: Joi.custom(objectIdValidation).required(),
 }),
 };
+
+
+export const groupIdValidation = {
+    params: Joi.object({
+      groupId: Joi.string().custom(objectIdValidation).required().messages({
+        "any.required": "Group ID is required",
+        "string.empty": "Group ID cannot be empty",
+      }),
+    }),
+  };

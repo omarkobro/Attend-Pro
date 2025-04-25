@@ -46,6 +46,8 @@ export let initiateApp = (app ,express)=>{
     app.use("/attendance", routers.attendanceRouter)
     app.use("/students", routers.studentsRouter)
     app.use("/warnings", routers.warningsRouter)
+    app.use("/notifications", routers.notificationsRouter)
+    app.use("/staff", routers.staffRouter)
     app.use('*', (req,res,next)=>{
         res.status(404).json({message: 'Not found'})
     })
