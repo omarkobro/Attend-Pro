@@ -1,20 +1,28 @@
 import mongoose, { model, Schema } from "mongoose";
 
 const announcementSchema = new Schema({
-    title :{
-        type : String,
-        trim : true ,
-        required : true
+    content: {
+      type: String,
+      required: true,
     },
-    content : {
-        type : String ,
-        required : true,
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "Staff",
+      required: true,
     },
-    createdBy : {
-        type : Schema.Types.ObjectId,
-        ref : "Staff",
-        required : true,
-    }
-},{timestamps:true})
-
+    subject: {
+      type: Schema.Types.ObjectId,
+      ref: "Subject",
+      required: true,
+    },
+    group: {
+      type: Schema.Types.ObjectId,
+      ref: "Group",
+      required: true,
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+  }, { timestamps: true });
 export default mongoose.models.Announcement || model('Announcement', announcementSchema)
