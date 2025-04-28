@@ -617,3 +617,267 @@ export const getStudentAttendanceHistory = async (req, res,next) => {
     data: attendanceRecords,
   });
 };
+
+//===================== Get Group Analytics ========================
+export const getGroupAnalytics = async (req, res, next) => {
+  const { groupId } = req.params;
+
+  // 1. Fetch all attendance records for this group
+  const attendances = await Attendance.find({ group: groupId }).select(
+    "weekNumber status student"
+  );
+
+  if (!attendances.length) {
+    return next(new AppError("No attendance records found for this group", 404));
+  }
+
+  // 2. Calculate Total Sessions
+  const totalSessions = await Attendance.countDocuments({ group: groupId });
+
+  if (!totalSessions) {
+    return next(new AppError("No attendance sessions found for this group", 404));
+  }
+
+  // 3. Average Attendance Rate
+  const attendedCount = attendances.filter((att) => att.status === "attended").length;
+  const averageAttendanceRate = ((attendedCount / totalSessions) * 100).toFixed(1);
+
+  // 4. Weekly Attendance Trend
+  const weeklyCounts = {};
+  attendances
+    .filter((att) => att.status === "attended")
+    .forEach((record) => {
+      const week = record.weekNumber;
+      weeklyCounts[week] = (weeklyCounts[week] || 0) + 1;
+    });
+
+  const weeklyAttendanceTrend = Object.entries(weeklyCounts)
+    .map(([week, count]) => ({
+      weekNumber: parseInt(week),
+      attendedStudents: count,
+    }))
+    .sort((a, b) => a.weekNumber - b.weekNumber);
+
+  // 5. Top Attending Students
+  const studentAttendanceMap = {};
+
+  attendances.forEach((att) => {
+    const studentId = att.student.toString();
+    if (!studentAttendanceMap[studentId]) {
+      studentAttendanceMap[studentId] = { attended: 0, total: 0 };
+    }
+    studentAttendanceMap[studentId].total += 1;
+    if (att.status === "attended") {
+      studentAttendanceMap[studentId].attended += 1;
+    }
+  });
+
+  const topAttendingStudents = await Promise.all(
+    Object.entries(studentAttendanceMap)
+      .map(async ([studentId, counts]) => {
+        const attendanceRate = ((counts.attended / counts.total) * 100).toFixed(1);
+        const student = await Student.findById(studentId).select("student_name student_id");
+        return {
+          studentId: studentId,
+          studentName: student?.student_name || "Unknown",
+          studentUniversityId: student?.student_id || "Unknown",
+          attendanceRate: Number(attendanceRate),
+        };
+      })
+  );
+
+  // Sort top students by attendance rate descending and pick top 5
+  const top5AttendingStudents = topAttendingStudents
+    .sort((a, b) => b.attendanceRate - a.attendanceRate)
+    .slice(0, 5);
+
+  // 6. Frequently Absent Students
+  const absentCounts = {};
+
+  attendances
+    .filter((att) => att.status === "absent")
+    .forEach((att) => {
+      const studentId = att.student.toString();
+      absentCounts[studentId] = (absentCounts[studentId] || 0) + 1;
+    });
+
+  const frequentlyAbsentStudents = await Promise.all(
+    Object.entries(absentCounts)
+      .map(async ([studentId, absentSessions]) => {
+        const student = await Student.findById(studentId).select("student_name student_id");
+        return {
+          studentId: studentId,
+          studentName: student?.student_name || "Unknown",
+          studentUniversityId: student?.student_id || "Unknown",
+          absentSessions,
+        };
+      })
+  );
+
+  // Sort by most absent and pick top 5
+  const top5FrequentlyAbsentStudents = frequentlyAbsentStudents
+    .sort((a, b) => b.absentSessions - a.absentSessions)
+    .slice(0, 5);
+
+  // 7. Pending Attendance Decisions
+  const pendingAttendances = await Attendance.find({
+    group: groupId,
+    status: "pending",
+  }).populate({
+    path: "student",
+    select: "student_name student_id",
+  });
+
+  const pendingAttendanceDecisions = pendingAttendances.map((record) => ({
+    studentId: record.student?._id,
+    studentName: record.student?.student_name || "Unknown",
+    studentUniversityId: record.student?.student_id || "Unknown",
+    sessionDate: record.sessionDate,
+    status: record.status
+  }));
+
+  // 8. Final Success Response
+  res.status(200).json({
+    message: "Group analytics fetched successfully",
+    data: {
+      averageAttendanceRate: Number(averageAttendanceRate),
+      weeklyAttendanceTrend,
+      topAttendingStudents: top5AttendingStudents,
+      frequentlyAbsentStudents: top5FrequentlyAbsentStudents,
+      pendingAttendanceDecisions,
+    },
+  });
+};
+
+
+// ================== Get System Analytics ==================
+export const getSystemAnalytics = async (req, res, next) => {
+  const { academicYear } = req.query;
+
+  // 1. Build subject filter if academicYear is provided
+  const subjectFilter = {};
+  if (academicYear) {
+    subjectFilter.year = academicYear;
+  }
+
+  // 2. Fetch all subjects (filtered if academicYear provided)
+  const subjects = await Subject.find(subjectFilter).select("_id name");  
+
+  if (subjects.length === 0) {
+    return next(new AppError("No subjects found for the selected academic year", 404));
+  }
+
+  const subjectIds = subjects.map((s) => s._id);
+
+  // 3. Fetch all students (no academicYear filtering here anymore)
+  const students = await Student.find().select("_id student_name student_id year");
+
+  const studentIds = students.map((s) => s._id);
+
+  if (students.length === 0) {
+    return next(new AppError("No students found", 404));
+  }
+
+  // 4. Fetch all attendance records for these students and subjects
+  const attendances = await Attendance.find({
+    student: { $in: studentIds },
+    // subject: { $in: subjectIds },
+  });
+
+  if (attendances.length === 0) {
+    return next(new AppError("No attendance records found", 404));
+  }
+
+  // ================== 1. Absence Rate by Day of Week ==================
+  const absenceByDay = {
+    Sunday: { absent: 0, total: 0 },
+    Monday: { absent: 0, total: 0 },
+    Tuesday: { absent: 0, total: 0 },
+    Wednesday: { absent: 0, total: 0 },
+    Thursday: { absent: 0, total: 0 },
+    Friday: { absent: 0, total: 0 },
+    Saturday: { absent: 0, total: 0 },
+  };
+
+  attendances.forEach((record) => {
+    const dayName = record.sessionDate.toLocaleString("en-US", { weekday: "long" });
+    if (absenceByDay[dayName]) {
+      absenceByDay[dayName].total++;
+      if (record.status === "absent") absenceByDay[dayName].absent++;
+    }
+  });
+
+  const absenceRateByDayOfWeek = Object.entries(absenceByDay).map(([day, counts]) => ({
+    day,
+    absenceRate: counts.total > 0 ? ((counts.absent / counts.total) * 100).toFixed(1) : 0,
+  }));
+
+  // ================== 2. Absence Rate by Subject ==================
+  const absenceBySubject = {};
+  subjects.forEach((subject) => {
+    absenceBySubject[subject._id.toString()] = {
+      subjectName: subject.name,
+      absent: 0,
+      total: 0,
+    };
+  });
+
+  attendances.forEach((record) => {
+    const subj = absenceBySubject[record.subject?.toString()];
+    if (subj) {
+      subj.total++;
+      if (record.status === "absent") subj.absent++;
+    }
+  });
+
+  const absenceRateBySubject = Object.values(absenceBySubject).map((subj) => ({
+    subjectName: subj.subjectName,
+    absenceRate: subj.total > 0 ? ((subj.absent / subj.total) * 100).toFixed(1) : 0,
+  }));
+
+  // ================== 3. Frequently Absent Students ==================
+  const absenceCounts = {};
+
+  attendances.forEach((record) => {
+    if (record.status === "absent") {
+      absenceCounts[record.student] = (absenceCounts[record.student] || 0) + 1;
+    }
+  });
+
+  const frequentlyAbsentStudents = students
+    .map((student) => ({
+      studentName: student.student_name,
+      studentId: student.student_id,
+      absenceCount: absenceCounts[student._id] || 0,
+      year: student.year,
+    }))
+    .filter((s) => s.absenceCount > 0)
+    .sort((a, b) => b.absenceCount - a.absenceCount)
+    .slice(0, 10);
+
+  // ================== 4. Attendance by Session Type ==================
+  const sessionTypeCounts = { lecture: { attended: 0, total: 0 }, lab: { attended: 0, total: 0 } };
+
+  attendances.forEach((record) => {
+    if (record.sessionType && sessionTypeCounts[record.sessionType]) {
+      sessionTypeCounts[record.sessionType].total++;
+      if (record.status === "attended") sessionTypeCounts[record.sessionType].attended++;
+    }
+  });
+
+  const attendanceBySessionType = Object.entries(sessionTypeCounts).map(([type, counts]) => ({
+    sessionType: type,
+    attendanceRate: counts.total > 0 ? ((counts.attended / counts.total) * 100).toFixed(1) : 0,
+  }));
+
+  // ================== Final Success Response ==================
+  res.status(200).json({
+    message: "System analytics fetched successfully",
+    data: {
+      absenceRateByDayOfWeek,
+      absenceRateBySubject,
+      frequentlyAbsentStudents,
+      attendanceBySessionType,
+    },
+  });
+};

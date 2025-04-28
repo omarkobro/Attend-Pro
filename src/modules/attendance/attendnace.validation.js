@@ -227,3 +227,32 @@ export const getAttendanceHistorySchema = {
       }),
   }),
 };
+
+export const getGroupAnalyticsSchema = {
+  params: Joi.object({
+    groupId: Joi.string()
+      .custom(objectIdValidation, "Valid MongoDB ObjectId validation")
+      .required()
+      .messages({
+        "any.required": "Group ID is required",
+        "string.empty": "Group ID cannot be empty",
+        "string.base": "Group ID must be a string",
+      }),
+  }),
+};
+
+export const systemAnalyticsValidation = {
+  query: Joi.object({
+    academicYear: Joi.number()
+      .integer()
+      .min(1)
+      .max(5)
+      .messages({
+        "number.base": "Academic year must be a number",
+        "number.integer": "Academic year must be an integer",
+        "number.min": "Academic year must be between 1 and 5",
+        "number.max": "Academic year must be between 1 and 5",
+      })
+      .optional(),
+  }),
+};

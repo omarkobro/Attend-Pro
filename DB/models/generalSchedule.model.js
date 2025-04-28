@@ -8,7 +8,7 @@ const generalScheduleSchema = new Schema({
     },
     group_name: {
         type: String,
-        required: true  // Example: "Group A"
+        required: true  
     },
     schedule: [
         {
@@ -16,7 +16,7 @@ const generalScheduleSchema = new Schema({
             day: { type: String, enum: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"], required: true },
             startTime: { type: String, required: true }, // Format: "HH:MM"
             endTime: { type: String, required: true },   // Format: "HH:MM"
-            location: { type: String } // e.g., Room 101, Lab A
+            location: { type: String} 
         }
     ]
 }, { timestamps: true });
