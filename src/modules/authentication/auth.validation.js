@@ -18,7 +18,7 @@ export const studentSignUpValidation = {
           "string.empty": "Email is required.",
           "string.email": "Invalid email format.",
       }),
-      university_email: Joi.string().trim().email().pattern(/^[a-zA-Z0-9._%+-]+@hti\.edu\.eg$/).optional().messages({
+      university_email: Joi.string().trim().email().pattern(/^[a-zA-Z0-9._%+-]+@hti\.edu\.eg$/).required().messages({
           "string.email": "Invalid university email format.",
       }),
       password: Joi.string().min(8).required().messages({
@@ -64,12 +64,13 @@ export const staffSignUpValidation = {
           "string.min": "Last name must be at least 2 characters.",
           "string.max": "Last name must not exceed 20 characters.",
       }),
-      email: Joi.string().trim().email().required().messages({
-          "string.empty": "Email is required.",
-          "string.email": "Invalid email format.",
+      email: Joi.string().trim().email().lowercase().required().messages({
+        "string.empty": "Email is required.",
+        "string.email": "Invalid email format.",
       }),
-      university_email: Joi.string().trim().email().pattern(/^[a-zA-Z0-9._%+-]+@hti\.edu\.eg$/).optional().messages({
-          "string.email": "Invalid university email format.",
+      
+      university_email: Joi.string().trim().email().lowercase().pattern(/^[a-zA-Z0-9._%+-]+@hti\.edu\.eg$/).required().messages({
+        "string.email": "Invalid university email format.",
       }),
       password: Joi.string().min(8).required().messages({
           "string.empty": "Password is required.",

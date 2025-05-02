@@ -15,9 +15,9 @@ const cloudinary = cloudinaryConnection();
 
 // Student Sign-Up API
 export const signUpStudent = async (req, res, next) => {
+  const email = req.body.email?.toLowerCase();
+  const university_email = req.body.university_email?.toLowerCase();
   const {
-    email,
-    university_email,
     password,
     firstName,
     lastName,
@@ -189,11 +189,13 @@ export const signUpStudent = async (req, res, next) => {
   });
 };
 
-//======================================================================================================================
 
-// Staff Sign-Up API
+//================ Staff Sign-Up API ====================
 export const signUpStaff = async (req, res, next) => {
-  const { email, university_email, password, firstName, lastName, phoneNumber } = req.body;
+  const email = req.body.email?.toLowerCase();
+  const university_email = req.body.university_email?.toLowerCase();
+  const { password, firstName, lastName, phoneNumber } = req.body;
+
 
   try {
     // 1. Check if staff is allowed to register

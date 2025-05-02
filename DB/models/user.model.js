@@ -20,13 +20,15 @@ const userSchema = new Schema({
         type : String,
         required : true ,
         unique: true,
-        trim : true 
+        trim : true,
+        lowercase: true
     },
     university_email: {
         type: String,
         unique: true,
         sparse: true,
         trim : true,
+        lowercase : true,
         match: /^[a-zA-Z0-9._%+-]+@hti\.edu\.eg$/,
     },
     password : {
