@@ -203,44 +203,100 @@ const queueBackgroundCheckIn = async (student, device, isInGroup, marked_by, now
  
 
 //================== Check-Out Handler Functions =======================
-export const handleCheckOutRequest = (payload) => {
-  const { rfid_tag, student_id, device_id } = payload;
+export const handleCheckOutRequest = async (payload) => {
+  console.log("📥 [Check-Out] Payload received:", payload);
 
-  // Basic validation
-  if (!rfid_tag && !student_id) {
-    return mqttClient.publish(
-      "attendance/check-out/response",
-      JSON.stringify({
-        success: false,
-        message: "Missing student_id or rfid_tag.",
-      })
-    );
-  }
+  const { rfid_tag, student_id, device_id, marked_by } = payload;
+  const responseTopic = `attendance/check-out/response/${device_id}`;
 
+  // 1. Validate device_id presence
   if (!device_id) {
-    return mqttClient.publish(
-      "attendance/check-out/response",
-      JSON.stringify({
-        success: false,
-        message: "Missing device_id.",
-      })
-    );
+    console.warn("❌ [Check-Out] Missing device_id");
+    return mqttClient.publish(responseTopic, JSON.stringify({
+      success: false,
+      message: "Missing device_id.",
+    }));
   }
 
-  
-  // Immediate response to Raspberry Pi
-  mqttClient.publish(
-    "attendance/check-out/response",
-    JSON.stringify({
-      success: true,
-      message: "Checkout request received.",
-    }),
-    { qos: 1 }
-    
-  );
-  
-  // Background processing
-  handleCheckOutInBackground(payload);
+  // 2. Fetch and validate device
+  const device = await Device.findOne({ device_id }).lean();
+  console.log("📟 [Check-Out] Device fetched:", device);
+
+  if (!device) {
+    console.warn("❌ [Check-Out] Device not found");
+    return mqttClient.publish(responseTopic, JSON.stringify({
+      success: false,
+      message: "Device not found.",
+    }));
+  }
+
+  if (device.status !== "reserved" || device.sessionMode !== "check-out") {
+    console.warn("❌ [Check-Out] Device is not ready:", {
+      status: device.status,
+      sessionMode: device.sessionMode
+    });
+    return mqttClient.publish(responseTopic, JSON.stringify({
+      success: false,
+      message: "Device is not ready for check-out.",
+    }));
+  }
+
+  // 3. Validate presence of student_id or rfid_tag
+  if (!student_id && !rfid_tag) {
+    console.warn("❌ [Check-Out] Missing student_id or rfid_tag");
+    return mqttClient.publish(responseTopic, JSON.stringify({
+      success: false,
+      message: "Missing student_id or rfid_tag.",
+    }));
+  }
+
+  // 4. Fetch student
+  let student = null;
+  if (student_id) {
+    student = await Student.findOne({ student_id })
+      .populate("user_id", "firstName lastName email")
+      .lean();
+  } else if (rfid_tag) {
+    student = await Student.findOne({ rfid_tag })
+      .populate("user_id", "firstName lastName email")
+      .lean();
+  }
+
+  console.log("🎓 [Check-Out] Student fetched:", student);
+
+  if (!student) {
+    console.warn("❌ [Check-Out] Student not found for:", student_id || rfid_tag);
+    return mqttClient.publish(responseTopic, JSON.stringify({
+      success: false,
+      message: `Student not found for ${student_id || rfid_tag}`,
+    }));
+  }
+
+  if (student_id && rfid_tag && student.rfid_tag !== rfid_tag) {
+    console.warn("❌ [Check-Out] RFID tag mismatch for student_id:", student_id);
+    return mqttClient.publish(responseTopic, JSON.stringify({
+      success: false,
+      message: "RFID tag mismatch with student ID.",
+    }));
+  }
+
+  // 5. Fast Response to PI
+  const fastResponse = {
+    success: true,
+    message: "Check-out received.",
+    student_id: student.student_id,
+    status: "check-out-received",
+    fullName: `${student.user_id.firstName} ${student.user_id.lastName}`
+  };
+  console.log("📤 [Check-Out] Fast response to MQTT:", fastResponse);
+  mqttClient.publish(responseTopic, JSON.stringify(fastResponse));
+
+  // 6. Background processing
+  try {
+    await handleCheckOutInBackground(payload);
+  } catch (err) {
+    console.error("🔥 [Check-Out] Error in background processing:", err);
+  }
 };
 
 const handleCheckOutInBackground = async (payload) => {
@@ -292,7 +348,6 @@ const handleCheckOutInBackground = async (payload) => {
     const attendance = await Attendance.findOne({
       student: student._id,
       subject: currentSubjectId,
-      // group: currentGroupId,
       sessionDate: { $gte: sessionStart, $lte: sessionEnd },
       weekNumber,
       sessionType,
