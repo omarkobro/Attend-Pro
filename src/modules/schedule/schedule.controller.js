@@ -2,90 +2,166 @@ import GeneralSchedule from "../../../DB/models/generalSchedule.model.js";
 import UserSchedule from "../../../DB/models/userSchedule.model.js";
 import Group from "../../../DB/models/group.model.js";
 import Subject from "../../../DB/models/subject.model.js";
+import Student from "../../../DB/models/student.model.js";
+import Staff from "../../../DB/models/staff.model.js";
 import moment from "moment";
 
 //===================== create General Schedule API===============================
 export const createGeneralSchedule = async (req, res) => {
-    const { year, group_name, schedule } = req.body;
+  const { year, group_name, schedule } = req.body;
 
-    // Fetch all groups with the given name
-    const groups = await Group.find({ name: group_name });
-    if (groups.length === 0) {
-        return res.status(404).json({ message: "Group not found" });
+  const groups = await Group.find({ name: group_name });
+  if (groups.length === 0) {
+    return res.status(404).json({ message: `No group found with name "${group_name}"` });
+  }
+
+  const groupIds = groups.map(group => group._id);
+
+  const subjects = await Subject.find({ groups: { $in: groupIds } }).select("_id name");
+  if (subjects.length === 0) {
+    return res.status(400).json({ message: `No subjects are assigned to group "${group_name}"` });
+  }
+
+  const subjectMap = {}; // { subject_id: subject_name }
+  subjects.forEach(sub => subjectMap[sub._id.toString()] = sub.name);
+
+  const subjectIds = Object.keys(subjectMap);
+
+  
+  for (const entry of schedule) {
+    if (!subjectIds.includes(entry.subject_id)) {
+      const subjectName = subjectMap[entry.subject_id] || `ID "${entry.subject_id}"`;
+      return res.status(400).json({
+        message: `Subject ${subjectName} is not linked to group "${group_name}". Please check subject-group associations.`,
+      });
+    }
+  }
+
+  const dailySlots = {}; // { day: [{ startTime, endTime, subject_id, sessionType }] }
+
+  for (const entry of schedule) {
+    const { day, startTime, endTime, subject_id, sessionType } = entry;
+
+    if (!dailySlots[day]) dailySlots[day] = [];
+
+    for (const existing of dailySlots[day]) {
+      const currentSubjectName = subjectMap[subject_id];
+      const existingSubjectName = subjectMap[existing.subject_id];
+
+      // Check for same subject + sessionType on same day
+      if (existing.subject_id === subject_id && existing.sessionType === sessionType) {
+        return res.status(400).json({
+          message: `Conflict on ${day}: The subject "${currentSubjectName}" already has a "${sessionType}" session scheduled.`,
+        });
+      }
+
+      // Check for time overlap
+      const overlap = !(
+        endTime <= existing.startTime || // ends before existing starts
+        startTime >= existing.endTime   // starts after existing ends
+      );
+
+      if (overlap) {
+        return res.status(400).json({
+          message: `Time conflict on ${day}: "${currentSubjectName}" (${sessionType}) from ${startTime} to ${endTime} overlaps with "${existingSubjectName}" (${existing.sessionType}) from ${existing.startTime} to ${existing.endTime}.`,
+        });
+      }
     }
 
-    // Get all group IDs
-    const groupIds = groups.map(group => group._id);
+    dailySlots[day].push({ startTime, endTime, subject_id, sessionType });
+  }
 
-    // Find all subjects that have any of these group IDs
-    const subjects = await Subject.find({ groups: { $in: groupIds } }).select("_id");
+  const newSchedule = await GeneralSchedule.create({ year, group_name, schedule });
 
-    if (subjects.length === 0) {
-        return res.status(400).json({ message: "No subjects found for this group" });
-    }
-
-    // Validate that all provided subject_ids exist within the subjects found
-    const subjectIds = subjects.map(sub => sub._id.toString());
-    for (const entry of schedule) {
-        if (!subjectIds.includes(entry.subject_id)) {
-            return res.status(400).json({ message: `Subject ${entry.subject_id} is not associated with group ${group_name}` });
-        }
-    }
-
-    // Create and save the general schedule
-    const newSchedule = await GeneralSchedule.create({ year, group_name, schedule });
-
-    res.status(201).json({ message: "General schedule created successfully", data: newSchedule });
+  return res.status(201).json({
+    message: "General schedule created successfully",
+    data: newSchedule,
+  });
 };
 
 
 //===================== Update General Schedule API===============================
 export const updateGeneralSchedule = async (req, res) => {
-    const { schedule_id, year, schedule } = req.body;
-  
-    // Ensure the schedule entry exists
-    const existingSchedule = await GeneralSchedule.findById(schedule_id);
-    if (!existingSchedule) {
-      return res.status(404).json({ message: "General schedule not found" });
+  const { schedule_id, year, schedule } = req.body;
+
+  const existingSchedule = await GeneralSchedule.findById(schedule_id);
+  if (!existingSchedule) {
+    return res.status(404).json({ message: "No general schedule found with the given ID." });
+  }
+
+  const updateData = { year };
+
+  if (schedule) {
+    const group_name = existingSchedule.group_name;
+
+    const groups = await Group.find({ name: group_name });
+    if (groups.length === 0) {
+      return res.status(400).json({ message: `No groups found with name "${group_name}".` });
     }
-  
-    // Prepare update object
-    const updateData = { year }; // Always update year
-  
-    // ✅ Only validate schedule if provided
-    if (schedule) {
-      // Extract group name from existing schedule
-      const group_name = existingSchedule.group_name;
-  
-      // Find all subjects that contain a group with this name
-      const groups = await Group.find({ name: group_name });
-      if (groups.length === 0) {
-        return res.status(400).json({ message: `No groups found with name ${group_name}` });
+
+    const groupIds = groups.map(group => group._id);
+
+    const subjects = await Subject.find({ groups: { $in: groupIds } }).select("_id name");
+    if (subjects.length === 0) {
+      return res.status(400).json({ message: `No subjects associated with group "${group_name}".` });
+    }
+
+    const subjectMap = {};
+    subjects.forEach(sub => subjectMap[sub._id.toString()] = sub.name);
+    const subjectIds = Object.keys(subjectMap);
+
+    for (const entry of schedule) {
+      if (!subjectIds.includes(entry.subject_id)) {
+        return res.status(400).json({
+          message: `Subject with ID "${entry.subject_id}" is not linked to group "${group_name}". Please check subject-group associations.`,
+        });
       }
-  
-      const groupIds = groups.map(group => group._id);
-      const subjects = await Subject.find({ groups: { $in: groupIds } }).select("_id");
-  
-      if (subjects.length === 0) {
-        return res.status(400).json({ message: `No subjects found for group ${group_name}` });
-      }
-  
-      // Validate that all provided subject_ids exist within the subjects found
-      const subjectIds = subjects.map(sub => sub._id.toString());
-      for (const entry of schedule) {
-        if (!subjectIds.includes(entry.subject_id)) {
-          return res.status(400).json({ message: `Subject ${entry.subject_id} is not associated with group ${group_name}` });
+    }
+
+    // Conflict Validation
+    const dailySlots = {}; // { day: [{ startTime, endTime, subject_id, sessionType }] }
+
+    for (const entry of schedule) {
+      const { day, startTime, endTime, subject_id, sessionType } = entry;
+
+      if (!dailySlots[day]) dailySlots[day] = [];
+
+      for (const existing of dailySlots[day]) {
+        const currentSubjectName = subjectMap[subject_id];
+        const existingSubjectName = subjectMap[existing.subject_id];
+
+        if (existing.subject_id === subject_id && existing.sessionType === sessionType) {
+          return res.status(400).json({
+            message: `Conflict on ${day}: The subject "${currentSubjectName}" already has a "${sessionType}" session scheduled.`,
+          });
+        }
+
+        const overlap = !(
+          endTime <= existing.startTime || 
+          startTime >= existing.endTime
+        );
+
+        if (overlap) {
+          return res.status(400).json({
+            message: `Time conflict on ${day}: "${currentSubjectName}" (${sessionType}) from ${startTime} to ${endTime} overlaps with "${existingSubjectName}" (${existing.sessionType}) from ${existing.startTime} to ${existing.endTime}.`,
+          });
         }
       }
-  
-      updateData.schedule = schedule; // ✅ Update schedule only if provided
+
+      dailySlots[day].push({ startTime, endTime, subject_id, sessionType });
     }
-  
-    // Update the general schedule
-    const updatedSchedule = await GeneralSchedule.findByIdAndUpdate(schedule_id, updateData, { new: true });
-  
-    res.status(200).json({ message: "General schedule updated successfully", data: updatedSchedule });
-  };
+
+    updateData.schedule = schedule;
+  }
+
+  const updatedSchedule = await GeneralSchedule.findByIdAndUpdate(schedule_id, updateData, { new: true });
+
+  return res.status(200).json({
+    message: "General schedule updated successfully",
+    data: updatedSchedule,
+  });
+};
+
 
 //===================== get all General Schedules API===============================
 export const getAllGeneralSchedules = async (req, res) => {
@@ -118,6 +194,43 @@ export const getAllGeneralSchedules = async (req, res) => {
     });
   };
 
+  
+//===================== getSchedulesGroupedByTimeAndDay API===============================
+export const getSchedulesGroupedByTimeAndDay = async (req, res) => {
+  const schedules = await GeneralSchedule.find({})
+    .populate({
+      path: "schedule.subject_id",
+      select: "name"
+    });
+
+  const result = {};
+
+  for (const entry of schedules) {
+    const { group_name, schedule } = entry;
+
+    for (const session of schedule) {
+      const { day, startTime, endTime, sessionType, location, subject_id } = session;
+
+      const timeRange = `${startTime} - ${endTime}`;
+      if (!result[day]) result[day] = {};
+      if (!result[day][timeRange]) result[day][timeRange] = [];
+
+      result[day][timeRange].push({
+        subject_id: subject_id?._id,
+        subject_name: subject_id?.name,
+        group_name,
+        sessionType,
+        location
+      });
+    }
+  }
+
+  return res.status(200).json({
+    message: "Schedules grouped by time and day",
+    data: result
+  });
+};
+
 
 //===================== delete general Schedule API===============================
   export const deleteGeneralSchedule = async (req, res) => {
@@ -133,72 +246,179 @@ export const getAllGeneralSchedules = async (req, res) => {
   };
 
 
-//================= Create User Schedule API=========================
+//================= Create User Schedule API =========================
 export const createUserSchedule = async (req, res) => {
   const { schedule } = req.body;
   const user_id = req.authUser._id;
+  const role = req.authUser.role;
 
-  // Get all valid subjects from General Schedules
-  const generalSchedules = await GeneralSchedule.find({}, "schedule.subject_id");
-  const validSubjects = new Set(generalSchedules.flatMap(gs => gs.schedule.map(s => s.subject_id.toString())));
+  let allowedSubjectIds = new Set();
+  const subjectMap = {};
 
-  // Fetch the user's existing schedule
+  if (role === "student") {
+    const student = await Student.findOne({ user_id }).populate({
+      path: "groups",
+      populate: { path: "subject_id", select: "_id name" }
+    });
+
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    student.groups.forEach(group => {
+      const subject = group.subject_id;
+      if (subject && subject._id) {
+        allowedSubjectIds.add(subject._id.toString());
+        subjectMap[subject._id.toString()] = subject.name;
+      }
+    });
+  } else if (role === "staff" || role === "admin") {
+    const staff = await Staff.findOne({ user_id }).populate("subjects", "_id name");
+
+    if (!staff) {
+      return res.status(404).json({ message: "Staff not found" });
+    }
+
+    staff.subjects.forEach(subject => {
+      allowedSubjectIds.add(subject._id.toString());
+      subjectMap[subject._id.toString()] = subject.name;
+    });
+  } else {
+    return res.status(403).json({ message: "Role Conflict, Try Again Later" });
+  }
+
   let userSchedule = await UserSchedule.findOne({ user_id });
+  const existingEntries = userSchedule ? userSchedule.schedule : [];
 
-  // Initialize arrays for valid and rejected subjects
-  const validSchedule = [];
+  const addedSubjects = [];
   const rejectedSubjects = [];
 
-  for (const entry of schedule) {
-    const { subject_id, day, startTime, endTime } = entry;
+  const dailySlots = {}; // day -> [{ startTime, endTime, subject_id, sessionType }]
 
-    // Check if the subject exists in General Schedules
-    if (!validSubjects.has(subject_id)) {
-      rejectedSubjects.push({ subject_id, reason: "Subject is not part of any general schedule" });
+  for (const entry of existingEntries) {
+    if (!dailySlots[entry.day]) dailySlots[entry.day] = [];
+    dailySlots[entry.day].push({
+      startTime: entry.startTime,
+      endTime: entry.endTime,
+      subject_id: entry.subject_id,
+      sessionType: entry.sessionType
+    });
+  }
+  
+  const seenNewSlots = {};
+
+  for (const entry of schedule) {
+    const { subject_id, day, startTime, endTime, location, sessionType } = entry;
+    const slotKey = `${subject_id}-${day}-${startTime}-${endTime}-${sessionType}`;
+
+    const subjectName = subjectMap[subject_id] || "Unknown Subject";
+
+    // 1. Not allowed for user
+    if (!allowedSubjectIds.has(subject_id)) {
+      rejectedSubjects.push({
+        subject_id,
+        subject_name: subjectName,
+        day,
+        startTime,
+        sessionType,
+        reason: "Subject is not assigned to you"
+      });
       continue;
     }
 
-    // Check for overlapping time slots
-    if (userSchedule) {
-      const hasConflict = userSchedule.schedule.some(existingEntry =>
-        existingEntry.day === day &&
-        !(
-          endTime <= existingEntry.startTime || // New lecture ends before existing lecture starts
-          startTime >= existingEntry.endTime   // New lecture starts after existing lecture ends
-        )
-      );
+    // 2. Duplicate in submitted schedule
+    if (seenNewSlots[slotKey]) {
+      rejectedSubjects.push({
+        subject_id,
+        subject_name: subjectName,
+        day,
+        startTime,
+        sessionType,
+        reason: "Duplicate entry in submitted schedule"
+      });
+      continue;
+    }
+    seenNewSlots[slotKey] = true;
 
-      if (hasConflict) {
-        rejectedSubjects.push({ subject_id, reason: "Time slot conflict with an existing lecture" });
-        continue;
-      }
+    // 3. Conflict with existing schedule
+    if (!dailySlots[day]) dailySlots[day] = [];
+
+    const overlap = dailySlots[day].some(slot => {
+      const conflict = !(endTime <= slot.startTime || startTime >= slot.endTime);
+      const sameSubjectAndSession = (
+        slot.subject_id.toString() === subject_id &&
+        slot.sessionType === sessionType
+      );
+      return conflict || sameSubjectAndSession;
+    });
+
+    if (overlap) {
+      rejectedSubjects.push({
+        subject_id,
+        subject_name: subjectName,
+        day,
+        startTime,
+        sessionType,
+        reason: "Time conflict or duplicate sessionType for the same subject on this day"
+      });
+      continue;
     }
 
-    // If no conflict, add to valid schedule
-    validSchedule.push(entry);
+    // 4. Validate entry exists in GeneralSchedule
+    const existsInGeneral = await GeneralSchedule.exists({
+      'schedule.subject_id': subject_id,
+      'schedule.day': day,
+      'schedule.startTime': startTime,
+      'schedule.endTime': endTime,
+      'schedule.sessionType': sessionType
+    });
+
+    console.log(existsInGeneral);
+    
+    
+    if (!existsInGeneral) {
+      rejectedSubjects.push({
+        subject_id,
+        subject_name: subjectName,
+        day,
+        startTime,
+        sessionType,
+        reason: "Subject entry must be part of an existing general schedule, please check timings and session type and try again."
+      });
+      continue;
+    }
+
+    // Passed all checks
+    addedSubjects.push(entry);
+    dailySlots[day].push({ startTime, endTime, subject_id, sessionType });
   }
 
-  // If no valid subjects, return an error
-  if (validSchedule.length === 0) {
-    return res.status(400).json({ message: "All provided subjects have conflicts or are invalid.", rejectedSubjects });
+  if (addedSubjects.length === 0) {
+    return res.status(400).json({
+      message: "All provided entries are either invalid, duplicated, or conflict with existing schedule.",
+      rejectedSubjects
+    });
   }
 
-  // If user already has a schedule, update it
   if (userSchedule) {
-    userSchedule.schedule.push(...validSchedule);
+    userSchedule.schedule.push(...addedSubjects);
   } else {
-    userSchedule = new UserSchedule({ user_id, schedule: validSchedule });
+    userSchedule = new UserSchedule({
+      user_id,
+      schedule: addedSubjects
+    });
   }
 
-  // Save the updated schedule
   await userSchedule.save();
 
   res.status(201).json({
     message: "User schedule created successfully",
-    rejectedSubjects,
-    schedule: userSchedule.schedule
+    addedSubjects,
+    rejectedSubjects
   });
 };
+
+
 
 //================= Update User Schedule API=========================
 export const updateUserSchedule = async (req, res) => {

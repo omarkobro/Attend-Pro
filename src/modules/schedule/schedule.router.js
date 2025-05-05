@@ -4,7 +4,7 @@ import { authorizeRole } from "../../middlewares/authorization.middleware.js";
 import { validationMiddleware } from "../../middlewares/validation.middleware.js";
 import expressAsyncHandler from "express-async-handler";
 import { systemRoles } from "../../utils/systemRoles.js";
-import { createGeneralSchedule, createUserSchedule, deleteGeneralSchedule, deleteUserSchedule, getAllGeneralSchedules, getUpcomingLectures, getUserSchedule, updateGeneralSchedule, updateUserSchedule } from "./schedule.controller.js";
+import { createGeneralSchedule, createUserSchedule, deleteGeneralSchedule, deleteUserSchedule, getAllGeneralSchedules, getSchedulesGroupedByTimeAndDay, getUpcomingLectures, getUserSchedule, updateGeneralSchedule, updateUserSchedule } from "./schedule.controller.js";
 import { createGeneralScheduleValidation, createUserScheduleValidation, deleteGeneralScheduleValidation, getAllGeneralSchedulesValidation, updateGeneralScheduleValidation, updateUserScheduleValidation } from "./schedule.validation.js";
 
 
@@ -64,5 +64,12 @@ router.get(
   expressAsyncHandler(getUpcomingLectures)
 );
 
+
+router.get(
+  "/getAllSchedulesForMobile",
+  auth,
+  authorizeRole([systemRoles.ADMIN,systemRoles.STAFF,systemRoles.STUDENT]),
+  expressAsyncHandler(getSchedulesGroupedByTimeAndDay)
+);
 router.delete("/delete", auth, deleteUserSchedule);
 export default router;

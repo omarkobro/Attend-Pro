@@ -8,7 +8,6 @@ import { systemRoles } from "../../utils/systemRoles.js";
 import expressAsyncHandler from "express-async-handler";
 const router = express.Router();
 
-// Add Allowed Staff Route
 router.post(
     "/addAllowedMember",
     auth,
