@@ -71,7 +71,7 @@ export const handleCheckInRequest = async (payload) => {
     }));
   }
 
-  const { currentSubjectId, currentGroupId, weekNumber, sessionType } = device;
+  const { currentSubjectId, currentGroupId} = device;
 
   // 3. Fetch group
   const group = await Group.findById(currentGroupId).lean();
