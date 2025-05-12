@@ -99,7 +99,7 @@ export const getDeviceById = async (req, res) => {
 export const selectDevice = async (req, res) => {
   const { deviceId } = req.params;
   const { subjectId, groupId, sessionType} = req.body;
-
+  
   // if (!weekNumber || isNaN(weekNumber) || weekNumber <= 0) {
   //   return res.status(400).json({ message: "Valid Week Number is required" });
   // }
