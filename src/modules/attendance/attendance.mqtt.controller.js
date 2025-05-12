@@ -283,7 +283,7 @@ export const handleCheckOutRequest = async (payload) => {
   // 5. Fast Response to PI
   const fastResponse = {
     success: true,
-    message: "Check-out received.",
+    message: `Check-out received for studnet ${student.student_id}`,
     student_id: student.student_id,
     status: "check-out-received",
     fullName: `${student.user_id.firstName} ${student.user_id.lastName}`
