@@ -32,11 +32,11 @@ let deviceSchema = new Schema({
         enum: ['check-in', 'check-out', null], 
         default: null
     },
-    weekNumber: {
-        type: Number,
-        default: null,
-        required: true,
-    },
+    // weekNumber: {
+    //     type: Number,
+    //     default: null,
+    //     required: true,
+    // },
     sessionType: {
         type: String,
         enum: ["lecture", "lab"],

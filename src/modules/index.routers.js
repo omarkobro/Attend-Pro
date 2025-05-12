@@ -13,5 +13,6 @@ import notificationsRouter from "./notification/notifications.router.js"
 import staffRouter from "./staff/staff.router.js"
 import announcementRouter from "./announcement/announcement.router.js"
 import userRouter from "./user/user.router.js"
+import semesterRouter from "./semster/semester.router.js"
 
-export{authRouter, allowedStaffRouter,subjectRouter,groupRouter,departmentRouter,schedulesRouter,deviceRouter,attendanceRouter,studentsRouter,warningsRouter,notificationsRouter,staffRouter,announcementRouter, userRouter}
+export{authRouter, allowedStaffRouter,subjectRouter,groupRouter,departmentRouter,schedulesRouter,deviceRouter,attendanceRouter,studentsRouter,warningsRouter,notificationsRouter,staffRouter,announcementRouter, userRouter,semesterRouter}

@@ -4,8 +4,10 @@ import Subject from "../../../DB/models/subject.model.js";
 import Student from "../../../DB/models/student.model.js";
 import Device from "../../../DB/models/device.model.js";
 import Notification from "../../../DB/models/notification.model.js";
+import Semester from "../../../DB/models/semster.model.js";
 import { io } from "../../utils/socket.js";
 import mqttClient from "../../utils/mqtt.connection.js";
+import { getWeekNumber } from "../../utils/calculateWeekNumber.js";
 
 
 //================== Check-In Handler Functions =======================
@@ -131,13 +133,24 @@ const queueBackgroundCheckIn = async (student, device, isInGroup, marked_by, now
     }
   }
 
+// 1. Get current semester
+const semester = await Semester.findOne({ isCurrent: true }).lean();
+if (!semester) {
+  console.error("❌ No active semester found.");
+  return;
+}
+
+// 2. Dynamically calculate week number
+const weekNumber = getWeekNumber(sessionStart, semester);
+
+
   // 1. Check for existing attendance
   const existingAttendance = await Attendance.findOne({
     student: student._id,
     subject: device.currentSubjectId,
     group: groupIdToUse,
     sessionDate: { $gte: sessionStart, $lt: sessionEnd },
-    weekNumber: device.weekNumber,
+    weekNumber,
     sessionType: device.sessionType,
   });
   console.log("📄 [Queue] Existing attendance:", existingAttendance?._id || "None");
@@ -161,7 +174,7 @@ const queueBackgroundCheckIn = async (student, device, isInGroup, marked_by, now
       subject: device.currentSubjectId,
       group: groupIdToUse,
       sessionDate: sessionStart,
-      weekNumber: device.weekNumber,
+      weekNumber,
       sessionType: device.sessionType,
       device: device._id,
       checkInTime: now,
@@ -339,10 +352,17 @@ const handleCheckOutInBackground = async (payload) => {
       return;
     }
 
-    const { currentSubjectId, currentGroupId, weekNumber, sessionType } = device;
+    const { currentSubjectId, currentGroupId, sessionType } = device;
+
+    const semester = await Semester.findOne({ isCurrent: true }).lean();
+    if (!semester) {
+      console.error("❌ No active semester found.");
+      return;
+    }
     const now = new Date();
     const sessionStart = new Date(now.setHours(0, 0, 0, 0));
     const sessionEnd = new Date(now.setHours(23, 59, 59, 999));
+    const weekNumber = getWeekNumber(sessionStart, semester);
 
     
     const attendance = await Attendance.findOne({

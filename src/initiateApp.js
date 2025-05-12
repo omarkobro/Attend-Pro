@@ -50,6 +50,7 @@ export let initiateApp = (app ,express)=>{
     app.use("/staff", routers.staffRouter)
     app.use("/announcement", routers.announcementRouter)
     app.use("/user", routers.userRouter)
+    app.use("/semester", routers.semesterRouter)
     app.use('*', (req,res,next)=>{
         res.status(404).json({message: 'Not found'})
     })
