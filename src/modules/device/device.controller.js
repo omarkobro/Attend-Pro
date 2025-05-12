@@ -305,6 +305,7 @@ export const endCheckOutSession = async (req, res) => {
   device.status = "free";
   device.currentGroupId = null;
   device.currentSubjectId = null;
+  device.sessionType = null;
 
   await device.save();
 
