@@ -98,9 +98,9 @@ export const selectDeviceSchema = {
         "any.required": "Group ID is required",
         "string.base": "Group ID must be a string",
       }),
-      weekNumber: Joi.number().required().messages({
-        "any.required": "Group ID is required",
-      }),
+      // weekNumber: Joi.number().required().messages({
+      //   "any.required": "Group ID is required",
+      // }),
       sessionType: Joi.string()
         .valid("lecture", "lab")
         .optional()
