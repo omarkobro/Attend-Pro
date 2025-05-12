@@ -94,7 +94,7 @@ export const handleCheckInRequest = async (payload) => {
   // 5. Fast Response to PI
   const fastResponse = {
     success: true,
-    message: isInGroup ? "Checked in" : "Pending check-in",
+    message: isInGroup ? `Checked in for student ${student.student_id}` : `Pending check-in for student ${student.student_id}` ,
     student_id: student.student_id,
     status: isInGroup ? "checked-in" : "checked-in-pending",
     fullName: `${student.user_id.firstName} ${student.user_id.lastName}`
@@ -296,7 +296,7 @@ export const handleCheckOutRequest = async (payload) => {
   // 5. Fast Response to PI
   const fastResponse = {
     success: true,
-    message: "Check-out received.",
+    message: `Check-out received for studnet ${student.student_id}`,
     student_id: student.student_id,
     status: "check-out-received",
     fullName: `${student.user_id.firstName} ${student.user_id.lastName}`
