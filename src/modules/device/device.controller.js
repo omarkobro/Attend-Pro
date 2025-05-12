@@ -98,11 +98,11 @@ export const getDeviceById = async (req, res) => {
 //===================== Select Device API ===========================
 export const selectDevice = async (req, res) => {
   const { deviceId } = req.params;
-  const { subjectId, groupId,weekNumber, sessionType} = req.body;
+  const { subjectId, groupId, sessionType} = req.body;
 
-  if (!weekNumber || isNaN(weekNumber) || weekNumber <= 0) {
-    return res.status(400).json({ message: "Valid Week Number is required" });
-  }
+  // if (!weekNumber || isNaN(weekNumber) || weekNumber <= 0) {
+  //   return res.status(400).json({ message: "Valid Week Number is required" });
+  // }
   
   const device = await Device.findById(deviceId);
   if (!device) {
@@ -144,7 +144,7 @@ export const selectDevice = async (req, res) => {
   device.status = "reserved";
   device.currentSubjectId = subject._id;
   device.currentGroupId = group._id;
-  device.weekNumber = weekNumber;
+  // device.weekNumber = weekNumber;
   device.sessionType = sessionType;
   device.sessionMode = null;
 
@@ -173,7 +173,7 @@ export const cancelHallSelection = async (req, res) => {
     currentSubjectId: null,
     currentGroupId: null,
     sessionMode: null,
-    weekNumber: null,
+    // weekNumber: null,
     sessionType: null
   }, { runValidators: false });
   
