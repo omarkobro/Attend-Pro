@@ -470,7 +470,7 @@ export const getAttendanceResultsForSession = async (req, res, next) => {
   });
 };
 
-//====== ========== Accept All Pending Students for a Session ================
+//================ Accept All Pending Students for a Session ================
 export const acceptAllPendingStudents = async (req, res, next) => {
   const { groupId } = req.params;
   const { sessionDate, sessionType } = req.body;
@@ -491,10 +491,19 @@ export const acceptAllPendingStudents = async (req, res, next) => {
     return next(new AppError("You are not assigned to this group", 403));
   }
 
-  // 3. Find all pending attendance records for the given session
+  // 3. Validate and parse sessionDate
+  const parsed = new Date(sessionDate);
+  if (isNaN(parsed.getTime())) {
+    return next(new AppError("Invalid sessionDate format", 400));
+  }
+
+  const startOfDay = new Date(parsed.setHours(0, 0, 0, 0));
+  const endOfDay = new Date(parsed.setHours(23, 59, 59, 999));
+
+  // 4. Find all pending and unreviewed attendance records
   const recordsToUpdate = await Attendance.find({
     group: groupId,
-    sessionDate: new Date(sessionDate),
+    sessionDate: { $gte: startOfDay, $lte: endOfDay },
     sessionType,
     status: "pending",
     approved: "unreviewed",
@@ -507,17 +516,16 @@ export const acceptAllPendingStudents = async (req, res, next) => {
     });
   }
 
-  // 4. Update records
+  // 5. Perform bulk update
   const bulkOps = recordsToUpdate.map((record) => ({
     updateOne: {
       filter: { _id: record._id },
       update: { $set: { status: "attended", approved: "approved" } },
     },
   }));
-
   await Attendance.bulkWrite(bulkOps);
 
-  // 5. Fetch updated records (with student info)
+  // 6. Fetch updated records with populated student info
   const updatedRecords = await Attendance.find({
     _id: { $in: recordsToUpdate.map((r) => r._id) },
   }).populate({
@@ -534,23 +542,44 @@ export const acceptAllPendingStudents = async (req, res, next) => {
   });
 };
 
-
 //================ Reject All Pending Students for a Session ================
-export const rejectAllPendingStudents = async (req, res) => {
+export const rejectAllPendingStudents = async (req, res, next) => {
   const { groupId } = req.params;
   const { sessionDate, sessionType } = req.body;
+  const staffUserId = req.authUser._id;
 
-  const parsedSessionDate = new Date(sessionDate);
+  // 1. Get staff profile
+  const staffProfile = await Staff.findOne({ user_id: staffUserId });
+  if (!staffProfile) return next(new AppError("Staff profile not found", 404));
 
+  // 2. Fetch group and verify staff assignment
+  const group = await Group.findById(groupId);
+  if (!group) return next(new AppError("Group not found", 404));
+
+  const staffAssignment = group.staff.find(
+    (s) => s.staff_id.toString() === staffProfile._id.toString()
+  );
+  if (!staffAssignment) {
+    return next(new AppError("You are not assigned to this group", 403));
+  }
+
+  // 3. Validate and parse sessionDate
+  const parsed = new Date(sessionDate);
+  if (isNaN(parsed.getTime())) {
+    return next(new AppError("Invalid sessionDate format", 400));
+  }
+
+  const startOfDay = new Date(parsed.setHours(0, 0, 0, 0));
+  const endOfDay = new Date(parsed.setHours(23, 59, 59, 999));
+
+  // 4. Reject only pending and unreviewed attendances
   const updatedAttendances = await Attendance.updateMany(
     {
       group: groupId,
-      sessionDate: {
-        $gte: new Date(parsedSessionDate.setHours(0, 0, 0, 0)),
-        $lte: new Date(parsedSessionDate.setHours(23, 59, 59, 999)),
-      },
+      sessionDate: { $gte: startOfDay, $lte: endOfDay },
       sessionType,
       status: "pending",
+      approved: "unreviewed",
     },
     {
       $set: {
@@ -560,12 +589,10 @@ export const rejectAllPendingStudents = async (req, res) => {
     }
   );
 
+  // 5. Fetch updated records
   const updatedStudents = await Attendance.find({
     group: groupId,
-    sessionDate: {
-      $gte: new Date(parsedSessionDate.setHours(0, 0, 0, 0)),
-      $lte: new Date(parsedSessionDate.setHours(23, 59, 59, 999)),
-    },
+    sessionDate: { $gte: startOfDay, $lte: endOfDay },
     sessionType,
     status: "absent",
     approved: "rejected",
@@ -587,12 +614,13 @@ export const rejectAllPendingStudents = async (req, res) => {
 };
 
 
+
 //================ Get Student Attendance  ================
 export const getStudentAttendanceHistory = async (req, res,next) => {
   const { studentId } = req.params;
   const { sort = "desc" } = req.query;
   const requesterRole = req.authUser.role;
-  
+
   // 1. Allow only the logged-in student or an admin
   if (requesterRole === "student" && student._id.toString() !== studentId) {
     return res.status(403).json({ message: "You are not authorized to access this student's history" });
