@@ -439,7 +439,7 @@ export const getAttendanceResultsForSession = async (req, res, next) => {
   ));
 
   const records = await Attendance.find({
-    group: groupId,
+    // group: groupId,
     sessionType,
     sessionDate: { $gte: sessionStart, $lte: sessionEnd },
   }).populate({
