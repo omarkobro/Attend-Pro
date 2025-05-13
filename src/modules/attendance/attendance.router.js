@@ -42,7 +42,7 @@ router.get(
   );
 
 
-  router.get(
+  router.post(
     "/getAttendanceResultsForSession/group/:groupId",
     auth,
     authorizeRole([systemRoles.ADMIN,systemRoles.STAFF]), 
